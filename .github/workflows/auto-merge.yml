@@ -1,0 +1,99 @@
+name: Auto-merge Base Branch into PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  auto-merge-base:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Determine base branch and merge strategy
+        id: strategy
+        run: |
+          BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
+          HEAD_BRANCH="${{ github.event.pull_request.head.ref }}"
+          
+          echo "Base branch: $BASE_BRANCH"
+          echo "Head branch: $HEAD_BRANCH"
+          
+          if [ "$BASE_BRANCH" == "dev" ]; then
+            # Feature branch → dev: merge dev into feature
+            echo "merge_branch=dev" >> $GITHUB_OUTPUT
+            echo "strategy=feature_to_dev" >> $GITHUB_OUTPUT
+            echo "📝 Strategy: Merge dev into feature branch"
+          elif [ "$BASE_BRANCH" == "main" ] && [ "$HEAD_BRANCH" == "dev" ]; then
+            # dev → main: SKIP (dev is protected, can't push)
+            echo "strategy=skip" >> $GITHUB_OUTPUT
+            echo "⏭️  Skipping: dev→main PR, dev branch is protected"
+          else
+            echo "strategy=skip" >> $GITHUB_OUTPUT
+            echo "⏭️  Skipping: No merge strategy for this PR"
+          fi
+
+      - name: Fetch branches
+        if: steps.strategy.outputs.strategy != 'skip'
+        run: |
+          git fetch origin ${{ steps.strategy.outputs.merge_branch }}
+
+      - name: Merge base branch into PR
+        id: merge
+        if: steps.strategy.outputs.strategy != 'skip'
+        run: |
+          MERGE_BRANCH="${{ steps.strategy.outputs.merge_branch }}"
+          echo "Merging $MERGE_BRANCH into PR branch..."
+          
+          if git merge origin/$MERGE_BRANCH --no-edit -m "Merge $MERGE_BRANCH into PR"; then
+            echo "merged=true" >> $GITHUB_OUTPUT
+            echo "✅ Successfully merged $MERGE_BRANCH"
+          else
+            echo "merged=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Conflict detected when merging $MERGE_BRANCH"
+            git merge --abort
+            exit 1
+          fi
+
+      - name: Push changes
+        if: steps.merge.outputs.merged == 'true'
+        run: |
+          git push origin ${{ github.event.pull_request.head.ref }}
+
+      - name: Comment success on PR
+        if: success() && steps.strategy.outputs.strategy != 'skip'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const mergeBranch = '${{ steps.strategy.outputs.merge_branch }}';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `✅ **Auto-merged** \`${mergeBranch}\` into this PR to keep it up to date!`
+            })
+
+      - name: Comment on PR failure
+        if: failure() && steps.strategy.outputs.strategy != 'skip'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const mergeBranch = '${{ steps.strategy.outputs.merge_branch }}';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `⚠️ **Merge Conflict Detected**\n\nAutomatic merge from \`${mergeBranch}\` failed due to conflicts. Please manually merge and resolve conflicts.\n\n\`\`\`bash\ngit fetch origin\ngit merge origin/${mergeBranch}\n# Resolve conflicts\ngit push\n\`\`\``
+            })

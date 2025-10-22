@@ -1,0 +1,65 @@
+name: Delete Merged Branches (Dev)
+
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:  # Allows manual trigger
+  schedule:
+    - cron: '0 0 * * 0'  # Runs weekly on Sunday at midnight
+
+jobs:
+  delete-merged-branches:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for all branches
+      
+      - name: Delete branches merged into dev
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Target branch for merged branches
+          TARGET_BRANCH="dev"
+          echo "Target branch: $TARGET_BRANCH"
+          
+          # Fetch all branches
+          git fetch --all --prune
+          
+          # Get list of merged branches into dev (excluding main and protected branches)
+          MERGED_BRANCHES=$(git branch -r --merged origin/$TARGET_BRANCH | \
+            grep -v "HEAD" | \
+            grep -v "$TARGET_BRANCH" | \
+            grep -v "main" | \
+            grep -v "master" | \
+            sed 's/origin\///' | \
+            grep -v "^[[:space:]]*$")
+          
+          if [ -z "$MERGED_BRANCHES" ]; then
+            echo "No merged branches to delete"
+            exit 0
+          fi
+          
+          echo "Found branches merged into $TARGET_BRANCH:"
+          echo "$MERGED_BRANCHES"
+          
+          # Delete each merged branch
+          for branch in $MERGED_BRANCHES; do
+            # Skip branches that match protected patterns
+            if [[ "$branch" =~ ^(main|master|develop|dev|staging|production|release/.*)$ ]]; then
+              echo "Skipping protected branch: $branch"
+              continue
+            fi
+            
+            echo "Deleting branch: $branch"
+            gh api \
+              --method DELETE \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${{ github.repository }}/git/refs/heads/$branch" \
+              && echo "✓ Deleted $branch" \
+              || echo "✗ Failed to delete $branch"
+          done
