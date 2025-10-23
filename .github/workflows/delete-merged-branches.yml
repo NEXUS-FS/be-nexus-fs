@@ -3,33 +3,41 @@ name: Delete Merged Branches (Dev)
 on:
   pull_request:
     types: [closed]
-  workflow_dispatch:  # Allows manual trigger
+  workflow_dispatch:  # Manual trigger
   schedule:
-    - cron: '0 0 * * 0'  # Runs weekly on Sunday at midnight
+    - cron: '0 0 * * 0'  # Weekly on Sunday at midnight
+
+permissions:
+  contents: write  # Required for deleting branches via API
 
 jobs:
   delete-merged-branches:
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch all history for all branches
-      
+          fetch-depth: 0  # Fetch all branches
+
+      - name: Install GitHub CLI & jq
+        run: sudo apt-get update && sudo apt-get install -y gh jq
+
+      - name: Authenticate GH CLI
+        run: gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
+
       - name: Delete branches merged into dev
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Target branch for merged branches
           TARGET_BRANCH="dev"
           echo "Target branch: $TARGET_BRANCH"
-          
-          # Fetch all branches
+
+          # Fetch latest branches
           git fetch --all --prune
-          
-          # Get list of merged branches into dev (excluding main and protected branches)
+
+          # Find all branches merged into the target branch
           MERGED_BRANCHES=$(git branch -r --merged origin/$TARGET_BRANCH | \
             grep -v "HEAD" | \
             grep -v "$TARGET_BRANCH" | \
@@ -37,29 +45,38 @@ jobs:
             grep -v "master" | \
             sed 's/origin\///' | \
             grep -v "^[[:space:]]*$")
-          
+
           if [ -z "$MERGED_BRANCHES" ]; then
             echo "No merged branches to delete"
             exit 0
           fi
-          
-          echo "Found branches merged into $TARGET_BRANCH:"
+
+          echo "Found merged branches into $TARGET_BRANCH:"
           echo "$MERGED_BRANCHES"
-          
-          # Delete each merged branch
+
           for branch in $MERGED_BRANCHES; do
-            # Skip branches that match protected patterns
+            # Skip protected branches
             if [[ "$branch" =~ ^(main|master|develop|dev|staging|production|release/.*)$ ]]; then
               echo "Skipping protected branch: $branch"
               continue
             fi
-            
+
+            # Match nexus-[number] or NEXUS-[number] (case insensitive)
+            if [[ "$branch" =~ ^([nN][eE][xX][uU][sS]-[0-9]+)$ ]]; then
+              echo "✅ Matched Nexus branch: $branch"
+            else
+              echo "Skipping non-Nexus branch: $branch"
+              continue
+            fi
+
+            # URL-encode branch (safe for API call)
+            ENCODED_BRANCH=$(echo "$branch" | jq -s -R -r @uri)
+
             echo "Deleting branch: $branch"
             gh api \
               --method DELETE \
               -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "/repos/${{ github.repository }}/git/refs/heads/$branch" \
+              "/repos/${{ github.repository }}/git/refs/heads/$ENCODED_BRANCH" \
               && echo "✓ Deleted $branch" \
               || echo "✗ Failed to delete $branch"
           done
