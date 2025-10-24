@@ -31,6 +31,9 @@ jobs:
           TARGET_BRANCH="dev"
           echo "Target branch: $TARGET_BRANCH"
 
+          # Enable case-insensitive regex matching
+          shopt -s nocasematch
+
           # Fetch latest branches
           git fetch --all --prune
 
@@ -58,8 +61,8 @@ jobs:
               continue
             fi
 
-            # Match nexus-[number] or NEXUS-[number] (case insensitive)
-            if [[ "$branch" =~ ^([nN][eE][xX][uU][sS]-[0-9]+)$ ]]; then
+            # Match branches like NEXUS-123 or NEXUS-123-fix-xyz (case-insensitive)
+            if [[ "$branch" =~ ^nexus-[0-9]+.*$ ]]; then
               echo "✅ Matched Nexus branch: $branch"
             else
               echo "Skipping non-Nexus branch: $branch"
