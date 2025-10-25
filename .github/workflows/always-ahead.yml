@@ -1,0 +1,111 @@
+name: Check PR Branch for "Ahead Only" Commits and Comment
+
+on:
+  pull_request:
+    branches:
+      - dev
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check_commits_ahead:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify commits are only ahead
+        id: check_status
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PR_BRANCH="${{ github.event.pull_request.head.ref }}"
+          TARGET_BRANCH="${{ github.event.pull_request.base.ref }}"
+
+          echo "Checking if PR branch '$PR_BRANCH' is strictly ahead of '$TARGET_BRANCH'."
+
+          # Ensure target branch is available locally for comparison
+          # This will create refs/remotes/origin/<TARGET_BRANCH>
+          git fetch origin "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}" || git fetch origin "${TARGET_BRANCH}:${TARGET_BRANCH}"
+
+          BASE_REF="origin/${TARGET_BRANCH}"
+
+          # default outputs
+          echo "fail_build=false" >> "$GITHUB_OUTPUT"
+
+          # Determine relationship:
+          # - if BASE is ancestor of HEAD => HEAD is ahead or same (OK)
+          # - elif HEAD is ancestor of BASE => HEAD is behind (fail)
+          # - else => diverged (fail)
+          if git merge-base --is-ancestor "$BASE_REF" HEAD; then
+            echo "status_message<<EOF" >> "$GITHUB_OUTPUT"
+            echo "## PR Branch Status: ✅ Ahead or Up-to-Date" >> "$GITHUB_OUTPUT"
+            echo "" >> "$GITHUB_OUTPUT"
+            echo "Your branch (**$PR_BRANCH**) is **ahead of or at the same commit as** the **$TARGET_BRANCH** branch. All commits on **$TARGET_BRANCH** are present on your branch." >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+            echo "fail_build=false" >> "$GITHUB_OUTPUT"
+          elif git merge-base --is-ancestor HEAD "$BASE_REF"; then
+            COMMITS_BEHIND=$(git rev-list --count HEAD.."$BASE_REF" || echo "0")
+            echo "status_message<<EOF" >> "$GITHUB_OUTPUT"
+            echo "## PR Branch Status: ❌ Behind" >> "$GITHUB_OUTPUT"
+            echo "" >> "$GITHUB_OUTPUT"
+            echo "**Error:** Your branch (**$PR_BRANCH**) is **behind** the **$TARGET_BRANCH** branch by **$COMMITS_BEHIND commit(s)**." >> "$GITHUB_OUTPUT"
+            echo "" >> "$GITHUB_OUTPUT"
+            echo "Please rebase your branch onto **$TARGET_BRANCH** to ensure a linear history and that all **$TARGET_BRANCH** changes are included. You can do this by running:" >> "$GITHUB_OUTPUT"
+            echo "" >> "$GITHUB_OUTPUT"
+            echo '```bash' >> "$GITHUB_OUTPUT"
+            echo 'git fetch origin' >> "$GITHUB_OUTPUT"
+            echo "git checkout $PR_BRANCH" >> "$GITHUB_OUTPUT"
+            echo "git pull --rebase origin $TARGET_BRANCH" >> "$GITHUB_OUTPUT"
+            echo '```' >> "$GITHUB_OUTPUT"
+            echo "" >> "$GITHUB_OUTPUT"
+            echo "This PR **cannot be merged** until this is resolved." >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+            echo "fail_build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "status_message<<EOF" >> "$GITHUB_OUTPUT"
+            echo "## PR Branch Status: ⚠️ Diverged" >> "$GITHUB_OUTPUT"
+            echo "" >> "$GITHUB_OUTPUT"
+            echo "**Error:** Your branch (**$PR_BRANCH**) has **diverged** from the **$TARGET_BRANCH** branch." >> "$GITHUB_OUTPUT"
+            echo "" >> "$GITHUB_OUTPUT"
+            echo "It contains commits not present on **$TARGET_BRANCH**, and **$TARGET_BRANCH** has commits not present on your branch." >> "$GITHUB_OUTPUT"
+            echo "" >> "$GITHUB_OUTPUT"
+            echo "To ensure a linear history, please rebase your branch onto **$TARGET_BRANCH**. You can do this by running:" >> "$GITHUB_OUTPUT"
+            echo "" >> "$GITHUB_OUTPUT"
+            echo '```bash' >> "$GITHUB_OUTPUT"
+            echo 'git fetch origin' >> "$GITHUB_OUTPUT"
+            echo "git checkout $PR_BRANCH" >> "$GITHUB_OUTPUT"
+            echo "git pull --rebase origin $TARGET_BRANCH" >> "$GITHUB_OUTPUT"
+            echo '```' >> "$GITHUB_OUTPUT"
+            echo "" >> "$GITHUB_OUTPUT"
+            echo "This PR **cannot be merged** until this is resolved." >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+            echo "fail_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Find existing comment
+        uses: peter-evans/find-comment@v2
+        id: fc
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body-includes: '## PR Branch Status:' # unique marker to find previous status comment
+
+      - name: Create or update comment
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          body: ${{ steps.check_status.outputs.status_message }}
+          edit-mode: replace
+
+      - name: Fail build if not ahead
+        if: steps.check_status.outputs.fail_build == 'true'
+        run: |
+          echo "Build failed: PR branch is not strictly ahead of target branch."
+          exit 1
