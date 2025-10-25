@@ -1,0 +1,69 @@
+name: Check PR Branch for "Ahead Only" Commits and Comment
+
+on:
+  pull_request:
+    branches:
+      - dev
+    types: [opened, synchronize, reopened] # Run on PR open, updates, and reopen
+
+jobs:
+  check_commits_ahead:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # Grant permission to write comments on PRs
+      contents: read       # Needed for actions/checkout@v4
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for accurate git comparisons
+
+      - name: Verify commits are only ahead
+        id: check_status # Add an ID to this step to access its outputs
+        run: |
+          PR_BRANCH="${{ github.event.pull_request.head.ref }}"
+          TARGET_BRANCH="${{ github.base_ref }}"
+          MESSAGE=""
+          FAIL_BUILD="false"
+
+          echo "Checking if PR branch '$PR_BRANCH' is strictly ahead of '$TARGET_BRANCH'."
+
+          if git merge-base --is-ancestor "$TARGET_BRANCH" "$PR_BRANCH"; then
+            MESSAGE="## PR Branch Status: ✅ Ahead or Up-to-Date\n\nYour branch (**$PR_BRANCH**) is **ahead of or at the same commit as** the **$TARGET_BRANCH** branch. All commits on **$TARGET_BRANCH** are present on your branch."
+            echo "::set-output name=status_message::$MESSAGE"
+            echo "::set-output name=fail_build::false"
+          else
+            COMMITS_BEHIND=$(git rev-list --count "$PR_BRANCH".."$TARGET_BRANCH")
+            FAIL_BUILD="true" # Always fail if not strictly ahead
+
+            if [ "$COMMITS_BEHIND" -gt 0 ]; then
+              MESSAGE="## PR Branch Status: ❌ Behind\n\n**Error:** Your branch (**$PR_BRANCH**) is **behind** the **$TARGET_BRANCH** branch by **$COMMITS_BEHIND commit(s)**.\n\nPlease **rebase** your branch onto **$TARGET_BRANCH** to ensure a linear history and that all **$TARGET_BRANCH** changes are included. You can do this by running:\n\n\`\`\`bash\ngit pull --rebase origin $TARGET_BRANCH\n\`\`\`\n\nThis PR **cannot be merged** until this is resolved."
+            else
+              MESSAGE="## PR Branch Status: ⚠️ Diverged\n\n**Error:** Your branch (**$PR_BRANCH**) has **diverged** from the **$TARGET_BRANCH** branch.\n\nIt contains commits not present on **$TARGET_BRANCH**, and **$TARGET_BRANCH** has commits not present on your branch.\n\nTo ensure a linear history, please **rebase** your branch onto **$TARGET_BRANCH**. You can do this by running:\n\n\`\`\`bash\ngit pull --rebase origin $TARGET_BRANCH\n\`\`\`\n\nThis PR **cannot be merged** until this is resolved."
+            fi
+            echo "::set-output name=status_message::$MESSAGE"
+            echo "::set-output name=fail_build::true"
+          fi
+
+      - name: Find existing comment
+        uses: peter-evans/find-comment@v2
+        id: fc
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: '## PR Branch Status:' # Unique string to identify our comment
+
+      - name: Create or update comment
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          body: ${{ steps.check_status.outputs.status_message }}
+          edit-mode: replace # Replace existing comment if found
+
+      - name: Fail build if not ahead
+        if: steps.check_status.outputs.fail_build == 'true'
+        run: |
+          echo "Build failed due to PR branch not being strictly ahead of target branch."
+          exit 1
