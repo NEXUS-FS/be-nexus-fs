@@ -38,19 +38,19 @@ namespace Infrastructure.Services.Decorators
         /// The underlying provider being decorated with caching functionality.
         /// </summary>
         private readonly Provider _decoratedProvider;
-        
+
         /// <summary>
         /// In-memory cache for storing file content and metadata.
         /// Acts as the primary cache layer before falling back to the decorated provider.
         /// </summary>
         private readonly IMemoryCache _memoryCache;
-        
+
         /// <summary>
         /// Logger for cache operations and debugging.
         /// AOP Concern: Cross-cutting logging for cache hit/miss tracking.
         /// </summary>
         private readonly Logger _logger;
-        
+
         /// <summary>
         /// Cache configuration settings (TTL, size limits, etc.).
         /// </summary>
@@ -75,9 +75,9 @@ namespace Infrastructure.Services.Decorators
             Provider decoratedProvider,
             IMemoryCache memoryCache,
             Logger logger,
-            string providerId, 
-            string providerType, 
-            Dictionary<string, string> configuration) 
+            string providerId,
+            string providerType,
+            Dictionary<string, string> configuration)
             : base(providerId, providerType, configuration)
         {
             _decoratedProvider = decoratedProvider ?? throw new ArgumentNullException(nameof(decoratedProvider));
@@ -119,7 +119,7 @@ namespace Infrastructure.Services.Decorators
         {
             // AOP BEFORE: Log method entry and cache lookup
             var cacheKey = GenerateCacheKey("file-content", filePath);
-            
+
             // Cache-first strategy implementation
             if (_memoryCache.TryGetValue(cacheKey, out object? cachedValue) && cachedValue is string cachedContent)
             {
@@ -130,21 +130,21 @@ namespace Infrastructure.Services.Decorators
 
             // AOP AROUND: Delegate to decorated provider on cache miss
             _logger?.LogInformation($"Cache MISS for file: {filePath}, delegating to provider", "CachedProviderDecorator");
-            
+
             try
             {
                 var content = await _decoratedProvider.ReadFileAsync(filePath);
-                
+
                 // AOP AFTER: Cache the successful result
                 var cacheOptions = new MemoryCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = _cacheOptions.FileCacheTtl,
                     Priority = CacheItemPriority.Normal
                 };
-                
+
                 _memoryCache.Set(cacheKey, content, cacheOptions);
                 _logger?.LogInformation($"Cached file content for: {filePath}", "CachedProviderDecorator");
-                
+
                 return content;
             }
             catch (Exception ex)
@@ -186,11 +186,11 @@ namespace Infrastructure.Services.Decorators
             {
                 // AOP AROUND: Execute the actual write operation first
                 await _decoratedProvider.WriteFileAsync(filePath, content);
-                
+
                 // AOP AFTER: Invalidate cache entries that are now stale
                 var cacheKey = GenerateCacheKey("file-content", filePath);
                 _memoryCache.Remove(cacheKey);
-                
+
                 _logger?.LogInformation($"File written and cache invalidated for: {filePath}", "CachedProviderDecorator");
             }
             catch (Exception ex)
@@ -230,11 +230,11 @@ namespace Infrastructure.Services.Decorators
             {
                 // AOP AROUND: Execute the actual delete operation
                 await _decoratedProvider.DeleteFileAsync(filePath);
-                
+
                 // AOP AFTER: Clean up cache entries for the deleted file
                 var cacheKey = GenerateCacheKey("file-content", filePath);
                 _memoryCache.Remove(cacheKey);
-                
+
                 _logger?.LogInformation($"File deleted and cache cleaned for: {filePath}", "CachedProviderDecorator");
             }
             catch (Exception ex)
@@ -270,7 +270,7 @@ namespace Infrastructure.Services.Decorators
         public override async Task<bool> TestConnectionAsync()
         {
             var cacheKey = GenerateCacheKey("connection-status", ProviderId);
-            
+
             // Check for cached connection status
             if (_memoryCache.TryGetValue(cacheKey, out object? cachedValue) && cachedValue is bool cachedStatus)
             {
@@ -282,19 +282,19 @@ namespace Infrastructure.Services.Decorators
             {
                 // AOP AROUND: Execute actual connection test
                 _logger?.LogInformation($"Connection status cache MISS for provider: {ProviderId}, testing connection", "CachedProviderDecorator");
-                
+
                 var connectionStatus = await _decoratedProvider.TestConnectionAsync();
-                
+
                 // AOP AFTER: Cache the connection status with shorter TTL
                 var cacheOptions = new MemoryCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = _cacheOptions.ConnectionCacheTtl,
                     Priority = CacheItemPriority.High // Connection status is critical
                 };
-                
+
                 _memoryCache.Set(cacheKey, connectionStatus, cacheOptions);
                 _logger?.LogInformation($"Connection status cached for provider: {ProviderId}, status: {connectionStatus}", "CachedProviderDecorator");
-                
+
                 return connectionStatus;
             }
             catch (Exception ex)
@@ -327,13 +327,13 @@ namespace Infrastructure.Services.Decorators
             try
             {
                 _logger?.LogInformation($"Initializing cached provider decorator for: {ProviderId}", "CachedProviderDecorator");
-                
+
                 // AOP AROUND: Initialize the decorated provider
                 await _decoratedProvider.Initialize(config);
-                
+
                 // AOP AFTER: Configure cache-specific settings
                 _cacheOptions.UpdateFromConfig(config);
-                
+
                 _logger?.LogInformation($"Cached provider decorator initialized successfully for: {ProviderId}", "CachedProviderDecorator");
             }
             catch (Exception ex)
@@ -358,7 +358,11 @@ namespace Infrastructure.Services.Decorators
         /// <returns>A unique cache key string</returns>
         private string GenerateCacheKey(string operation, string identifier)
         {
-            return $"provider:{ProviderId}:{operation}:{identifier.GetHashCode()}";
+            var fnv1a = new Infrastructure.Cache.Hashing.FNV1a64();
+            fnv1a.Update(ProviderId);
+            fnv1a.Update(operation);
+            fnv1a.Update(identifier);
+            return fnv1a.Digest().ToString("x16");
         }
 
         /// <summary>
@@ -387,12 +391,12 @@ namespace Infrastructure.Services.Decorators
         {
             public TimeSpan FileCacheTtl { get; private set; } = TimeSpan.FromMinutes(15);
             public TimeSpan ConnectionCacheTtl { get; private set; } = TimeSpan.FromMinutes(5);
-            
+
             public CacheOptions(Dictionary<string, string> configuration)
             {
                 UpdateFromConfig(configuration);
             }
-            
+
             public void UpdateFromConfig(Dictionary<string, string> configuration)
             {
                 if (configuration.TryGetValue("cache.file.ttl", out string? fileTtl) && !string.IsNullOrEmpty(fileTtl))
@@ -400,7 +404,7 @@ namespace Infrastructure.Services.Decorators
                     if (TimeSpan.TryParse(fileTtl, out var parsedFileTtl))
                         FileCacheTtl = parsedFileTtl;
                 }
-                
+
                 if (configuration.TryGetValue("cache.connection.ttl", out string? connectionTtl) && !string.IsNullOrEmpty(connectionTtl))
                 {
                     if (TimeSpan.TryParse(connectionTtl, out var parsedConnectionTtl))
