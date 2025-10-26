@@ -7,9 +7,16 @@ using Microsoft.Extensions.Caching.Memory;
 /// Wraps an existing storage provider to add intelligent caching capabilities
 /// that improve performance by reducing redundant file operations.
 /// 
-/// This decorator implements the Gang of Four Decorator pattern, allowing
-/// caching behavior to be added dynamically to any Provider implementation
-/// without modifying the original provider code.
+/// This decorator implements the Gang of Four Decorator pattern properly by:
+/// - Taking a Provider instance in the constructor (composition over inheritance)
+/// - Implementing the same Provider interface as the decorated object
+/// - Delegating calls to the decorated provider while adding caching behavior
+/// - Maintaining transparency - the client doesn't know it's using a decorator
+/// 
+/// Usage Example:
+/// var baseProvider = new AWSProvider("aws-1", "S3", config);
+/// var cachedProvider = new CachedProviderDecorator(baseProvider, memoryCache, logger);
+/// // cachedProvider behaves like baseProvider but with caching
 /// 
 /// AOP Cross-Cutting Concerns Applied:
 /// - Caching: Automatic cache management for read operations
@@ -61,6 +68,9 @@ namespace Infrastructure.Services.Decorators
         /// <summary>
         /// Initializes a new instance of the CachedProviderDecorator.
         /// 
+        /// This constructor implements the proper Decorator pattern by taking a provider
+        /// as input and delegating its properties to maintain the same interface.
+        /// 
         /// AOP Integration Point: Constructor injection allows for AOP framework
         /// integration where logging, metrics, and other cross-cutting concerns
         /// can be automatically injected.
@@ -68,23 +78,25 @@ namespace Infrastructure.Services.Decorators
         /// <param name="decoratedProvider">The provider to wrap with caching</param>
         /// <param name="memoryCache">Cache implementation for storing data</param>
         /// <param name="logger">Logger for cache operations</param>
-        /// <param name="providerId">Unique identifier for this provider instance</param>
-        /// <param name="providerType">Type classification of the provider</param>
-        /// <param name="configuration">Provider configuration dictionary</param>
         public CachedProviderDecorator(
             Provider decoratedProvider,
             IMemoryCache memoryCache,
-            Logger logger,
-            string providerId,
-            string providerType,
-            Dictionary<string, string> configuration)
-            : base(providerId, providerType, configuration)
+            Logger logger)
+            : base(decoratedProvider.ProviderId, decoratedProvider.ProviderType, decoratedProvider.Configuration)
         {
             _decoratedProvider = decoratedProvider ?? throw new ArgumentNullException(nameof(decoratedProvider));
             _memoryCache = memoryCache ?? throw new ArgumentNullException(nameof(memoryCache));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _cacheOptions = new CacheOptions(configuration);
+            _cacheOptions = new CacheOptions(decoratedProvider.Configuration);
         }
+        #endregion
+
+        #region Properties
+        /// <summary>
+        /// Gets the underlying provider being decorated.
+        /// Useful for debugging, testing, or unwrapping the decorator chain.
+        /// </summary>
+        public Provider DecoratedProvider => _decoratedProvider;
         #endregion
 
         #region Cache-Enhanced Provider Operations
@@ -331,7 +343,14 @@ namespace Infrastructure.Services.Decorators
                 // AOP AROUND: Initialize the decorated provider
                 await _decoratedProvider.Initialize(config);
 
-                // AOP AFTER: Configure cache-specific settings
+                // AOP AFTER: Configure cache-specific settings from the updated config
+                // Update our base configuration first
+                foreach (var kvp in config)
+                {
+                    Configuration[kvp.Key] = kvp.Value;
+                }
+                
+                // Update cache options with the new configuration
                 _cacheOptions.UpdateFromConfig(config);
 
                 _logger?.LogInformation($"Cached provider decorator initialized successfully for: {ProviderId}", "CachedProviderDecorator");
