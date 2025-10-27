@@ -7,12 +7,13 @@ on:
 jobs:
   notify:
     runs-on: ubuntu-latest
-    if: |
-      github.event.pull_request.base.ref == 'dev' &&
-      github.event.pull_request.head.ref != 'dev' &&
-      !contains(github.event.pull_request.title, 'Merge') &&
-      !contains(github.event.pull_request.title, 'merge') &&
-      !contains(github.event.pull_request.body, 'Merged via the queue')
+    if: >
+        github.event.pull_request.base.ref == 'dev' &&
+        github.event.pull_request.head.ref != 'dev' &&
+        !contains(github.event.pull_request.title || '', 'Merge') &&
+        !contains(github.event.pull_request.title || '', 'merge') &&
+        !contains(github.event.pull_request.title || '', 'Update branch') &&
+        !contains(github.event.pull_request.body || '', 'Merged via the queue')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
