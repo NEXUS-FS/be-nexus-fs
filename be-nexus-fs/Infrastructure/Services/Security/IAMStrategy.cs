@@ -2,13 +2,13 @@
 
 
 /// <summary>
-/// Strategy Pattern implementation for Basic authentication.
+/// Strategy Pattern implementation for AWS IAM authentication.
 /// </summary>
 namespace Infrastructure.Services.Security
 {
-    public class BasicAuthStrategy : IAuthStrategy
+    public class IamStrategy : IAuthStrategy
     {
-        public string StrategyName => "BasicAuth";
+        public string StrategyName => "IAM";
 
         public Task<bool> AuthenticateAsync(Dictionary<string, string> credentials)
         {
