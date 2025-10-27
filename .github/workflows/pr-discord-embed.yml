@@ -7,21 +7,55 @@ on:
 jobs:
   notify:
     runs-on: ubuntu-latest
-    # Only notify if the PR targets 'dev' and is NOT from 'dev' itself
-    if: github.base_ref == 'dev' && github.head_ref != 'dev'
-
+    if: |
+      github.event.pull_request.base.ref == 'dev' &&
+      github.event.pull_request.head.ref != 'dev' &&
+      !contains(github.event.pull_request.title, 'Merge') &&
+      !contains(github.event.pull_request.title, 'merge') &&
+      !contains(github.event.pull_request.body, 'Merged via the queue')
     steps:
-      - name: Send PR notification to Discord
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      
+      - name: Check if latest commit is a merge
+        id: check_merge
+        run: |
+          # Get the number of parents for the latest commit
+          PARENT_COUNT=$(git rev-list --parents -n 1 HEAD | awk '{print NF-1}')
+          
+          if [ "$PARENT_COUNT" -gt 1 ]; then
+            echo "is_merge=true" >> $GITHUB_OUTPUT
+            echo "Latest commit is a merge commit (has $PARENT_COUNT parents)"
+          else
+            echo "is_merge=false" >> $GITHUB_OUTPUT
+            echo "Latest commit is a regular commit"
+          fi
+      
+      - name: Determine event type
+        id: event_type
+        if: steps.check_merge.outputs.is_merge != 'true'
+        run: |
+          if [ "${{ github.event.action }}" = "opened" ]; then
+            echo "message_type=opened" >> $GITHUB_OUTPUT
+          else
+            echo "message_type=updated" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Send Discord notification
+        if: steps.check_merge.outputs.is_merge != 'true'
         uses: tsickert/discord-webhook@v5.1.0
         with:
           webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
           username: "GitHub PR Bot"
           avatar-url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
-          embed-title: "🚀 New Pull Request Opened!"
-          embed-color: 5814783
+          embed-title: ${{ steps.event_type.outputs.message_type == 'opened' && '🚀 New Pull Request Opened!' || '🔄 Pull Request Updated!' }}
+          embed-color: ${{ steps.event_type.outputs.message_type == 'opened' && 5814783 || 16776960 }}
           embed-description: |
             **👤 Author:** ${{ github.actor }}
+            **🔀 Branch:** `${{ github.head_ref }} → ${{ github.base_ref }}`
             **📝 Title:** ${{ github.event.pull_request.title }}
             **🔗 [View Pull Request](${{ github.event.pull_request.html_url }})**
           embed-footer-text: "Repository: ${{ github.repository }}"
-          embed-timestamp: "${{ github.event.pull_request.created_at }}"
+          embed-timestamp: "${{ github.event.pull_request.updated_at }}"
