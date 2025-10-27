@@ -1,16 +1,22 @@
 name: Notify Discord on Pull Request
+
 on:
   pull_request:
     types: [opened, synchronize]
+
 jobs:
   notify:
     runs-on: ubuntu-latest
     if: |
       github.event.pull_request.base.ref == 'dev' &&
       github.event.pull_request.head.ref != 'dev' &&
-      !contains(github.event.pull_request.title, 'Merge') &&
-      !contains(github.event.pull_request.title, 'merge') &&
-      !contains(github.event.pull_request.body, 'Merged via the queue')
+      github.actor != 'github-actions[bot]' &&
+      github.actor != 'dependabot[bot]' &&
+      !contains(github.event.pull_request.title || '', 'Merge') &&
+      !contains(github.event.pull_request.title || '', 'merge') &&
+      !contains(github.event.pull_request.title || '', 'Update branch') &&
+      !contains(github.event.pull_request.body || '', 'Merged via the queue')
+
     steps:
       - name: Determine event type
         id: event_type
@@ -20,7 +26,7 @@ jobs:
           else
             echo "message_type=updated" >> $GITHUB_OUTPUT
           fi
-      
+
       - name: Send Discord notification
         uses: tsickert/discord-webhook@v5.1.0
         with:
