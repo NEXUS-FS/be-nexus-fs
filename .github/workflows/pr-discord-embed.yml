@@ -7,18 +7,18 @@ on:
 jobs:
   notify:
     runs-on: ubuntu-latest
-    if: |
-      github.base_ref == 'dev' &&
-      github.head_ref != 'dev' &&
-      !contains(github.event.pull_request.title, 'Merge branch \'dev\'') &&
-      !contains(github.event.pull_request.title, 'merge dev') &&
-      !contains(github.event.pull_request.body, 'Merged via the queue')
+    if: >
+      github.event.pull_request.base.ref == 'dev' &&
+      github.event.pull_request.head.ref != 'dev' &&
+      !contains(github.event.pull_request.title || '', "Merge branch 'dev'") &&
+      !contains(github.event.pull_request.title || '', 'merge dev') &&
+      !contains(github.event.pull_request.body || '', 'Merged via the queue')
 
     steps:
       - name: Determine event type
         id: event_type
         run: |
-          if [ "${{ github.event.action }}" == "opened" ]; then
+          if [ "${{ github.event.action }}" = "opened" ]; then
             echo "message_type=opened" >> $GITHUB_OUTPUT
           else
             echo "message_type=updated" >> $GITHUB_OUTPUT
@@ -34,6 +34,7 @@ jobs:
           embed-color: ${{ steps.event_type.outputs.message_type == 'opened' && 5814783 || 16776960 }}
           embed-description: |
             **👤 Author:** ${{ github.actor }}
+            **🔀 Branch:** `${{ github.head_ref }} → ${{ github.base_ref }}`
             **📝 Title:** ${{ github.event.pull_request.title }}
             **🔗 [View Pull Request](${{ github.event.pull_request.html_url }})**
           embed-footer-text: "Repository: ${{ github.repository }}"
