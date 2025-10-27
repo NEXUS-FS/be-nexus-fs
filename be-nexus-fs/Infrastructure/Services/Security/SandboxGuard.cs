@@ -3,6 +3,12 @@
     /// <summary>
     /// Proxy Pattern implementation.
     /// Enforces sandbox restrictions and validates resource access.
+    /// 
+    /// AOP Join Points (placeholders):
+    /// - Logging: Log method entry, parameters, exit, results, exceptions
+    /// - Metrics: Measure execution time for methods
+    /// - ErrorHandling: Capture and log exceptions
+    /// - Security/Audit: Track access attempts and failures
     /// </summary>
     public class SandboxGuard
     {
@@ -20,8 +26,10 @@
         // Constructor that I forgot..
         public SandboxGuard(ACLManager aclManager, string strategyName)
         {
+            // [AOP: Logging] BEFORE: Log constructor call and parameters
             _aclManager = aclManager ?? throw new ArgumentNullException(nameof(aclManager));
             StrategyName = strategyName ?? throw new ArgumentNullException(nameof(strategyName));
+            // [AOP: Metrics] AFTER: Track SandboxGuard instantiation
         }
 
         /// <summary>
@@ -30,6 +38,11 @@
         /// </summary>
         public async Task<bool> ValidateAccessAsync(string username, string resourcePath, string permission)
         {
+
+            // [AOP: Logging] BEFORE: Log method entry and input parameters
+            // [AOP: Metrics] AROUND: Measure execution time
+            // [AOP: Security/Audit] BEFORE: Track access attempt
+
             if (string.IsNullOrWhiteSpace(username) ||
                 string.IsNullOrWhiteSpace(resourcePath) ||
                 string.IsNullOrWhiteSpace(permission))
@@ -38,6 +51,7 @@
             bool hasPermission = await Task.Run(() => _aclManager.HasPermission(username, permission));
             bool isAllowed = await IsPathAllowedAsync(resourcePath);
 
+            // [AOP: Logging] AFTER: Log method exit and result
             return hasPermission && isAllowed;
         }
 
@@ -46,11 +60,12 @@
         /// </summary>
         public Task<bool> IsPathAllowedAsync(string path)
         {
+            // [AOP: Logging] BEFORE: Log path check
             if (string.IsNullOrWhiteSpace(path))
                 return Task.FromResult(false);
 
             lock (_lock)
-            {
+            {   // [AOP: Logging] AFTER: Log path check result
                 return Task.FromResult(_allowedPaths.Contains(path));
             }
         }
@@ -60,6 +75,7 @@
         /// </summary>
         public Task AddAllowedPathAsync(string path)
         {
+            // [AOP: Logging] BEFORE: Log path addition attempt
             if (string.IsNullOrWhiteSpace(path))
                 throw new ArgumentException("Path cannot be null or empty.", nameof(path));
 
@@ -67,7 +83,7 @@
             {
                 _allowedPaths.Add(path);
             }
-
+            // [AOP: Logging] AFTER: Log successful path addition
             return Task.CompletedTask;
         }
 
@@ -76,6 +92,7 @@
         /// </summary>
         public Task RemoveAllowedPathAsync(string path)
         {
+            // [AOP: Logging] BEFORE: Log path removal attempt
             if (string.IsNullOrWhiteSpace(path))
                 return Task.CompletedTask;
 
@@ -83,7 +100,7 @@
             {
                 _allowedPaths.Remove(path);
             }
-
+            // [AOP: Logging] AFTER: Log successful path removal
             return Task.CompletedTask;
         }
 
@@ -91,10 +108,11 @@
         /// Returns all allowed paths for this sandbox.
         /// </summary>
         public Task<IEnumerable<string>> GetAllowedPathsAsync()
-        {
+        { // [AOP: Logging] BEFORE: Log retrieval attempt
             lock (_lock)
             {
                 var copy = _allowedPaths.ToList();
+                // [AOP: Logging] AFTER: Log number of allowed paths retrieved
                 return Task.FromResult<IEnumerable<string>>(copy);
             }
         }
@@ -105,11 +123,16 @@
         /// </summary>
         public async Task EnforceSandboxAsync(string username, string resourcePath, string permission)
         {
+            // [AOP: Logging] BEFORE: Log enforcement attempt
+            // [AOP: Metrics] AROUND: Measure enforcement execution time
+            // [AOP: Security/Audit] BEFORE: Track enforcement attempt
             bool accessGranted = await ValidateAccessAsync(username, resourcePath, permission);
 
             if (!accessGranted)
+                // [AOP: ErrorHandling] AFTER_THROWING: Log unauthorized access
                 throw new UnauthorizedAccessException(
                     $"Access denied for user '{username}' to '{resourcePath}' in sandbox '{StrategyName}'.");
+            // [AOP: Logging] AFTER: Log successful enforcement
         }
     }
 }
