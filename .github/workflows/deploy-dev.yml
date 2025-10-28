@@ -20,12 +20,11 @@ jobs:
       - name: Setup Railway CLI
         run: npm i -g @railway/cli
 
-      - name: List Available Services (Debug)
+      - name: Link to Railway Project
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_DEV }}
         run: |
-          echo "Available services:"
-          railway service list
+          railway link ${{ secrets.RAILWAY_PROJECT_ID }}
 
       - name: Deploy to Railway Dev
         env:
