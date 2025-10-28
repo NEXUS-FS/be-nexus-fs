@@ -1,10 +1,10 @@
-﻿/// <summary>
-/// Repository interface for AuditLog entity operations.
-/// </summary>
+﻿using Domain.Entities;
 
-namespace Domain.Repositories
+namespace Domain.Repositories;
+
+public interface IAuditLogRepository
 {
-    public class IAuditLogRepository
-    {
-    }
+    Task<AuditLogEntity> AddAsync(AuditLogEntity auditLog);
+    Task<IEnumerable<AuditLogEntity>> GetByEntityIdAsync(string entityId, DateTime since);
+    Task<IEnumerable<AuditLogEntity>> GetAllAsync(DateTime since);
 }

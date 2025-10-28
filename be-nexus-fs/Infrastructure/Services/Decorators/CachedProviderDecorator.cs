@@ -256,6 +256,40 @@ namespace Infrastructure.Services.Decorators
                 throw;
             }
         }
+        public override async Task<List<string>> ListFilesAsync(string directoryPath, bool recursive)
+        {
+            var cacheKey = GenerateCacheKey($"file-list-{recursive}", directoryPath);
+
+            if (_memoryCache.TryGetValue(cacheKey, out object? cachedValue) && cachedValue is List<string> cachedFiles)
+            {
+                _logger?.LogInformation($"Cache HIT for directory listing: {directoryPath} (recursive: {recursive})", "CachedProviderDecorator");
+                return cachedFiles;
+            }
+
+            _logger?.LogInformation($"Cache MISS for directory listing: {directoryPath}, delegating to provider", "CachedProviderDecorator");
+
+            try
+            {
+                var files = await _decoratedProvider.ListFilesAsync(directoryPath, recursive);
+
+                var cacheOptions = new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2),
+                    Priority = CacheItemPriority.Low
+                };
+
+                _memoryCache.Set(cacheKey, files, cacheOptions);
+                _logger?.LogInformation($"Cached directory listing for: {directoryPath} ({files.Count} files)", "CachedProviderDecorator");
+
+                return files;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"Error listing directory {directoryPath}, invalidating cache", "CachedProviderDecorator", ex);
+                _memoryCache.Remove(cacheKey);
+                throw;
+            }
+        }
 
         /// <summary>
         /// Tests connection with cached status for performance.
@@ -432,5 +466,7 @@ namespace Infrastructure.Services.Decorators
             }
         }
         #endregion
+        
+        
     }
 }

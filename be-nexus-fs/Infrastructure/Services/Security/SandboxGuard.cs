@@ -48,7 +48,7 @@
                 string.IsNullOrWhiteSpace(permission))
                 return false;
 
-            bool hasPermission = await Task.Run(() => _aclManager.HasPermission(username, permission));
+            bool hasPermission = await Task.Run(() => _aclManager.HasPermissionAsync(username, permission));
             bool isAllowed = await IsPathAllowedAsync(resourcePath);
 
             // [AOP: Logging] AFTER: Log method exit and result

@@ -1,6 +1,7 @@
 ﻿using Application.DTOs;
 using Domain.Repositories;
 using Infrastructure.Services.Observability;
+using Infrastructure.Services.Security;
 
 namespace Infrastructure.Services.UI
 {
@@ -59,26 +60,27 @@ namespace Infrastructure.Services.UI
         /// Registers or updates a provider configuration.
         public async Task<bool> RegisterOrUpdateProviderAsync(ProviderRegistrationRequest request)
         {
-            if (request == null)
-                throw new ArgumentNullException(nameof(request));
-
-            //collect metrics and log based on what happens..
-
-            var existing = null;
-            //check if provider exists...
-            //   existing = await _providerRepository.GetByIdAsync(request.ProviderId); or some method that does that..
-            if (existing != null)
-            {
-                // update existing provider
-                throw new NotImplementedException("Provider update not implemented yet.");
-            }
-            else
-            {
-                // register new provider
-                throw new NotImplementedException("Provider registration not implemented yet.");
-            }
-
-            return true;
+            // if (request == null)
+            //     throw new ArgumentNullException(nameof(request));
+            //
+            // //collect metrics and log based on what happens..
+            //
+            // var existing = null;
+            // //check if provider exists...
+            // //   existing = await _providerRepository.GetByIdAsync(request.ProviderId); or some method that does that..
+            // if (existing != null)
+            // {
+            //     // update existing provider
+            //     throw new NotImplementedException("Provider update not implemented yet.");
+            // }
+            // else
+            // {
+            //     // register new provider
+            //     throw new NotImplementedException("Provider registration not implemented yet.");
+            // }
+            //
+            // return true;
+            throw new NotImplementedException("Provider update not implemented yet.");
         }
     }
 }
