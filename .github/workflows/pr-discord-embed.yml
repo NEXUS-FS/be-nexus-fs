@@ -1,19 +1,16 @@
 name: Notify Discord on Pull Request
-
 on:
   pull_request:
     types: [opened, synchronize]
-
 jobs:
   notify:
     runs-on: ubuntu-latest
-    if: >
+    if: |
       github.event.pull_request.base.ref == 'dev' &&
       github.event.pull_request.head.ref != 'dev' &&
-      !contains(github.event.pull_request.title || '', "Merge branch 'dev'") &&
-      !contains(github.event.pull_request.title || '', 'merge dev') &&
-      !contains(github.event.pull_request.body || '', 'Merged via the queue')
-
+      !contains(github.event.pull_request.title, 'Merge') &&
+      !contains(github.event.pull_request.title, 'merge') &&
+      !contains(github.event.pull_request.body, 'Merged via the queue')
     steps:
       - name: Determine event type
         id: event_type
