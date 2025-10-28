@@ -1,39 +1,35 @@
-name: Deploy to Production
+name: Deploy to Railway Dev
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   tests:
     uses: ./.github/workflows/test.yml
 
-  deploy-prod:
+  deploy:
     runs-on: ubuntu-latest
     needs: tests
+    environment: production
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          dotnet-version: 9.0.x
+          node-version: '20'
 
-      - name: Setup Railway CLI
-        run: npm i -g @railway/cli
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
 
-      - name: Deploy to Railway Production
+      - name: Deploy to Railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
-        run: |
-          railway up --service be-nexus-fs --environment production --ci
+        run: railway up --service=patient-blessing --detach
 
-      - name: Run EF Core Migrations
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
-          CONNECTION_STRING: ${{ secrets.DATABASE_URL }}
-        run: |
-          cd be-nexus-fs
-          dotnet ef database update --connection "$CONNECTION_STRING"
+      - name: ✅ Deployment Success
+        run: echo "Deployed to Railway Prod!"
