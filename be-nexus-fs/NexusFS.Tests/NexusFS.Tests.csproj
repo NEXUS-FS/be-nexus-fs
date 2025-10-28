@@ -37,8 +37,11 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\be-nexus-fs\be-nexus-fs.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../be-nexus-fs/be-nexus-fs.csproj" />
+        <ProjectReference Include="../Application/Application.csproj" />
+        <ProjectReference Include="../Domain/Domain.csproj" />
+        <ProjectReference Include="../Infrastructure/Infrastructure.csproj" />
+    </ItemGroup>
 
 </Project>
