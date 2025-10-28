@@ -1,14 +1,19 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
-# Copy ALL projects
+# Copy everything
 COPY . .
 
-# Restore only the main project
-RUN dotnet restore "be-nexus-fs/be-nexus-fs.csproj"
+# Find and restore the main project
+# Try both possible paths
+RUN dotnet restore "be-nexus-fs/be-nexus-fs.csproj" || dotnet restore "be-nexus-fs.csproj" || true
 
-# Publish only the main project (this skips tests automatically)
-RUN dotnet publish "be-nexus-fs/be-nexus-fs.csproj" -c Release -o /app/publish
+# Publish - try both paths
+RUN if [ -f "be-nexus-fs/be-nexus-fs.csproj" ]; then \
+      dotnet publish "be-nexus-fs/be-nexus-fs.csproj" -c Release -o /app/publish; \
+    else \
+      dotnet publish "be-nexus-fs.csproj" -c Release -o /app/publish; \
+    fi
 
 FROM mcr.microsoft.com/dotnet/aspnet:9.0
 WORKDIR /app
