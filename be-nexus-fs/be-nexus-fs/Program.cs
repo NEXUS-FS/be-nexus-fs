@@ -25,18 +25,17 @@ builder.Services.AddCors(options =>
 
 
 var app = builder.Build();
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
+
+app.MapOpenApi();
     
-    app.MapScalarApiReference(options =>
-    {
-        options
-            .WithTitle("NexusFS API Documentation")
-            .WithTheme(ScalarTheme.Purple)
-            .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
-    });
-}
+app.MapScalarApiReference(options =>
+{
+    options
+        .WithTitle("NexusFS API Documentation")
+        .WithTheme(ScalarTheme.Purple)
+        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
+});
+
 
 app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
