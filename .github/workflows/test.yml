@@ -1,0 +1,30 @@
+name: Run Tests
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev]
+  workflow_call:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore be-nexus-fs.sln
+
+      - name: Build solution
+        run: dotnet build be-nexus-fs.sln --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet test NexusFS.Tests/NexusFS.Tests.csproj --no-build --verbosity normal
