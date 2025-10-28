@@ -1,20 +1,19 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
-# Copy everything
+# Copy everything from repo root
 COPY . .
 
-# Find and restore the main project
-# Try both possible paths
-RUN dotnet restore "be-nexus-fs/be-nexus-fs.csproj" || dotnet restore "be-nexus-fs.csproj" || true
+# The .sln is in be-nexus-fs/
+# The main .csproj is in be-nexus-fs/be-nexus-fs/
 
-# Publish - try both paths
-RUN if [ -f "be-nexus-fs/be-nexus-fs.csproj" ]; then \
-      dotnet publish "be-nexus-fs/be-nexus-fs.csproj" -c Release -o /app/publish; \
-    else \
-      dotnet publish "be-nexus-fs.csproj" -c Release -o /app/publish; \
-    fi
+# Restore only the main project (not the solution, not tests)
+RUN dotnet restore "be-nexus-fs/be-nexus-fs/be-nexus-fs.csproj"
 
+# Publish only the main project
+RUN dotnet publish "be-nexus-fs/be-nexus-fs/be-nexus-fs.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+# Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:9.0
 WORKDIR /app
 EXPOSE 8080
