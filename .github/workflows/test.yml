@@ -14,17 +14,23 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 9.0.x
 
+      # Change working directory to the outer folder that contains the solution
       - name: Restore dependencies
-        run: dotnet restore be-nexus-fs.sln
+        run: dotnet restore ./be-nexus-fs.sln
+        working-directory: ./
 
       - name: Build solution
-        run: dotnet build be-nexus-fs.sln --configuration Release --no-restore
+        run: dotnet build ./be-nexus-fs.sln --configuration Release --no-restore
+        working-directory: ./
 
       - name: Run tests
-        run: dotnet test NexusFS.Tests/NexusFS.Tests.csproj --no-build --verbosity normal
+        run: dotnet test ./NexusFS.Tests/NexusFS.Tests.csproj --no-build --verbosity normal
+        working-directory: ./
