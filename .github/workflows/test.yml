@@ -22,15 +22,11 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
-      # Change working directory to the outer folder that contains the solution
       - name: Restore dependencies
-        run: dotnet restore ./be-nexus-fs.sln
-        working-directory: ./
+        run: dotnet restore ./be-nexus-fs/be-nexus-fs.sln
 
       - name: Build solution
-        run: dotnet build ./be-nexus-fs.sln --configuration Release --no-restore
-        working-directory: ./
+        run: dotnet build ./be-nexus-fs/be-nexus-fs.sln --configuration Release --no-restore
 
       - name: Run tests
-        run: dotnet test ./NexusFS.Tests/NexusFS.Tests.csproj --no-build --verbosity normal
-        working-directory: ./
+        run: dotnet test ./be-nexus-fs/NexusFS.Tests/NexusFS.Tests.csproj --no-build --verbosity normal
