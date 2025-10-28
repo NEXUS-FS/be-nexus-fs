@@ -2,19 +2,19 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
-# Copy project files (paths are now from repo root)
+# Copy ONLY production projects (not tests)
 COPY ["be-nexus-fs/be-nexus-fs/be-nexus-fs.csproj", "be-nexus-fs/"]
 COPY ["be-nexus-fs/Application/Application.csproj", "Application/"]
 COPY ["be-nexus-fs/Domain/Domain.csproj", "Domain/"]
 COPY ["be-nexus-fs/Infrastructure/Infrastructure.csproj", "Infrastructure/"]
 
-# Restore dependencies
+# Restore dependencies (only production projects)
 RUN dotnet restore "be-nexus-fs/be-nexus-fs.csproj"
 
-# Copy source code
+# Copy source code (includes tests, but we won't build them)
 COPY . .
 
-# Build and publish
+# Build and publish (only the main project, not tests)
 WORKDIR "/src/be-nexus-fs"
 RUN dotnet publish "be-nexus-fs.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
