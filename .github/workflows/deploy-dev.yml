@@ -15,10 +15,10 @@ jobs:
     environment: development
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -26,14 +26,10 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Link Railway project and deploy
+      - name: Deploy to Railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_DEV }}
-        run: |
-          railway link ${{ secrets.RAILWAY_PROJECT_ID }} --environment ${{ secrets.RAILWAY_ENVIRONMENT_ID }}
-          railway up --service patient-blessing --detach
+        run: railway up --detach
 
-      - name: Deployment Success
-        run: |
-          echo "✅ Deployment to Railway Dev triggered successfully!"
-          echo "Check Railway dashboard for deployment status"
+      - name: ✅ Deployment Success
+        run: echo "Deployed to Railway Dev!"
