@@ -1,5 +1,6 @@
 ﻿using Application.DTOs;
 using Domain.Repositories;
+using Infrastructure.Services.Security;
 
 /// <summary>
 /// Exposes access control and user permission data to the management UI.

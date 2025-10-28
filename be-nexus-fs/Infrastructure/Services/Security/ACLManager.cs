@@ -1,82 +1,188 @@
-﻿/// <summary>
-/// Manages user permissions and access control lists.
-/// </summary>
+﻿using System.Collections.Concurrent;
+using Domain.Repositories;
 
 namespace Infrastructure.Services.Security
 {
-    private readonly IAccessControlRepository _accessControlRepository; //consider this has the methods for persistence .. not it don't exist yet...
-    
-
-     private readonly Dictionary<string, HashSet<string>> _userPermissions =
-            new(StringComparer.OrdinalIgnoreCase);
-     public ACLManager(IAccessControlRepository repository)
+    /// <summary>
+    /// Manages user permissions and access control lists.
+    /// Uses in-memory caching with persistent storage via repository.
+    /// </summary>
+    public class ACLManager
     {
-        _repository = repository;
-
-        //now fill the dictionary from repository at startup...
-        //to be impplemented.
-    }
-        // Dictionary to store user permissions.
-        // Key: username (case-insensitive ?), Value: set of permissions (case-insensitive)
-       
-        // Thread-safety lock object
-        private readonly object _lock = new();
-
-        // Grant permission to user.
-        public async void GrantPermission(string username, string permission)
-        {
-            Validate(username, permission);
-            lock (_lock)
-        {
-                //we should use here the repository to persist the changes..
-                //and let this in-memory dictionary as a cache at runtime.
-                //// -- if( repository.AddPermission(username, permission)) then the other...
-                if (!_userPermissions.ContainsKey(username))
-                {
-                    _userPermissions[username] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                }
-                _userPermissions[username].Add(permission);
-            }
-        }
-       
-        // Revokes a permission from a user
-        public async void RevokePermission(string username, string permission)
-        {
-            Validate(username, permission);
-            lock (_lock)
-            {
-                if (_userPermissions.ContainsKey(username))
-                {
-                    _userPermissions[username].Remove(permission);
-                }
-            }
-        }
-
-        // Checks if user has a given permission.
-        public async bool HasPermission(string username, string permission)
-        {
-            Validate(username, permission);
-
-        //here we could verify in the dictionary and if not found, check the repository for persistence...
-        lock (_lock)
-        {
-            return _userPermissions.TryGetValue(username, out var permissions)
-                   && permissions.Contains(permission);
-        }
-        ///repository.HasPermission(username, permission);...
-        }
-
-    // Gets all permissions from a user
-    public async Task<IEnumerable<string>> GetUserPermissionsAsync(string username)
-    {
-        if (string.IsNullOrWhiteSpace(username))
-            return Array.Empty<string>();
-
-       // return await _accessControlRepository.GetUserPermissionsAsync(username); //persistence check
-    }
+        private readonly IAccessControlRepository _repository;
         
+        // Thread-safe dictionary to cache user permissions at runtime
+        // Key: username (case-insensitive), Value: set of permissions
+        private readonly ConcurrentDictionary<string, HashSet<string>> _userPermissions;
+        
+        public ACLManager(IAccessControlRepository repository)
+        {
+            _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+            _userPermissions = new ConcurrentDictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            
+            // Load permissions from repository at startup
+            _ = InitializePermissionsAsync();
+        }
 
-           private static void Validate(string username, string permission)
+        /// <summary>
+        /// Loads all permissions from persistent storage into memory cache.
+        /// </summary>
+        private async Task InitializePermissionsAsync()
+        {
+            try
+            {
+                var allPermissions = await _repository.GetAllPermissionsAsync();
+                
+                foreach (var (username, permissions) in allPermissions)
+                {
+                    _userPermissions[username] = new HashSet<string>(
+                        permissions, 
+                        StringComparer.OrdinalIgnoreCase
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error - permissions will be loaded on-demand
+                Console.WriteLine($"Error loading permissions: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Grants a permission to a user. Persists to repository and updates cache.
+        /// </summary>
+        public async Task GrantPermissionAsync(string username, string permission)
+        {
+            Validate(username, permission);
+
+            // Persist to repository first
+            var success = await _repository.AddPermissionAsync(username, permission);
+            
+            if (success)
+            {
+                // Update in-memory cache
+                _userPermissions.AddOrUpdate(
+                    username,
+                    new HashSet<string>(StringComparer.OrdinalIgnoreCase) { permission },
+                    (key, existing) =>
+                    {
+                        existing.Add(permission);
+                        return existing;
+                    }
+                );
+            }
+            else
+            {
+                throw new InvalidOperationException($"Failed to grant permission '{permission}' to user '{username}'");
+            }
+        }
+
+        /// <summary>
+        /// Revokes a permission from a user. Persists to repository and updates cache.
+        /// </summary>
+        public async Task RevokePermissionAsync(string username, string permission)
+        {
+            Validate(username, permission);
+
+            // Persist to repository first
+            var success = await _repository.RemovePermissionAsync(username, permission);
+            
+            if (success && _userPermissions.TryGetValue(username, out var permissions))
+            {
+                // Update in-memory cache
+                permissions.Remove(permission);
+                
+                // Remove user entry if no permissions left
+                if (permissions.Count == 0)
+                {
+                    _userPermissions.TryRemove(username, out _);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Checks if a user has a specific permission.
+        /// First checks cache, then falls back to repository if not found.
+        /// </summary>
+        public async Task<bool> HasPermissionAsync(string username, string permission)
+        {
+            Validate(username, permission);
+
+            // Check in-memory cache first
+            if (_userPermissions.TryGetValue(username, out var permissions) && 
+                permissions.Contains(permission))
+            {
+                return true;
+            }
+
+            // Cache miss - check repository and update cache
+            var hasPermission = await _repository.HasPermissionAsync(username, permission);
+            
+            if (hasPermission)
+            {
+                // Update cache with found permission
+                _userPermissions.AddOrUpdate(
+                    username,
+                    new HashSet<string>(StringComparer.OrdinalIgnoreCase) { permission },
+                    (key, existing) =>
+                    {
+                        existing.Add(permission);
+                        return existing;
+                    }
+                );
+            }
+
+            return hasPermission;
+        }
+
+        /// <summary>
+        /// Gets all permissions for a user from repository.
+        /// </summary>
+        public async Task<IEnumerable<string>> GetUserPermissionsAsync(string username)
+        {
+            if (string.IsNullOrWhiteSpace(username))
+                return Array.Empty<string>();
+
+            // Check cache first
+            if (_userPermissions.TryGetValue(username, out var cachedPermissions))
+            {
+                return cachedPermissions.ToList();
+            }
+
+            // Fetch from repository and update cache
+            var permissions = await _repository.GetUserPermissionsAsync(username);
+            var permissionSet = new HashSet<string>(permissions, StringComparer.OrdinalIgnoreCase);
+            
+            if (permissionSet.Count > 0)
+            {
+                _userPermissions[username] = permissionSet;
+            }
+
+            return permissions;
+        }
+
+        /// <summary>
+        /// Revokes all permissions for a user.
+        /// </summary>
+        public async Task RevokeAllPermissionsAsync(string username)
+        {
+            if (string.IsNullOrWhiteSpace(username))
+                throw new ArgumentException("Username cannot be null or empty.", nameof(username));
+
+            await _repository.RemoveAllPermissionsAsync(username);
+            _userPermissions.TryRemove(username, out _);
+        }
+
+        /// <summary>
+        /// Clears the in-memory cache and reloads from repository.
+        /// </summary>
+        public async Task RefreshCacheAsync()
+        {
+            _userPermissions.Clear();
+            await InitializePermissionsAsync();
+        }
+
+        private static void Validate(string username, string permission)
         {
             if (string.IsNullOrWhiteSpace(username))
                 throw new ArgumentException("Username cannot be null or empty.", nameof(username));
@@ -84,3 +190,4 @@ namespace Infrastructure.Services.Security
                 throw new ArgumentException("Permission cannot be null or empty.", nameof(permission));
         }
     }
+}

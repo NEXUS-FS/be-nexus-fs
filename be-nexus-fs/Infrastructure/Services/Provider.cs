@@ -70,5 +70,7 @@
         // [AOP: LoggingAspect] AFTER: Log initialization result
         // [AOP: ErrorHandlingAspect] AFTER_THROWING: Capture and log exceptions
         public abstract Task Initialize(Dictionary<string, string> config);
+		public abstract Task<List<string>> ListFilesAsync(string directoryPath, bool recursive);
+
     }
 }
