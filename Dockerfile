@@ -9,7 +9,7 @@ COPY ["be-nexus-fs/Domain/Domain.csproj", "Domain/"]
 COPY ["be-nexus-fs/Infrastructure/Infrastructure.csproj", "Infrastructure/"]
 
 # Restore dependencies
-RUN dotnet restore "be-nexus-fs/be-nexus-fs/be-nexus-fs.csproj"
+RUN dotnet restore "be-nexus-fs/be-nexus-fs.csproj"
 
 # Copy source code
 COPY . .
