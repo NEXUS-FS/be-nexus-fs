@@ -4,7 +4,7 @@ namespace Domain.Entities
 {
     /// <summary>
     /// Entity representing a user in the NexusFS system.
-    /// Supports both Basic Authentication (username/password) and OAuth (Google).
+    /// Supports Basic Authentication (username/password), OAuth (Google), and Clerk authentication.
     /// </summary>
     public class UserEntity
     {
@@ -45,14 +45,14 @@ namespace Domain.Entities
         public required string Role { get; set; }
 
         /// <summary>
-        /// Authentication provider: "Basic" or "Google".
+        /// Authentication provider: "Basic", "Google", or "Clerk".
         /// </summary>
         [Required]
         [MaxLength(50)]
         public required string Provider { get; set; }
 
         /// <summary>
-        /// Provider-specific user ID (e.g., Google user ID for OAuth users).
+        /// Provider-specific user ID (e.g., Google user ID for OAuth users, Clerk user ID for Clerk users).
         /// Nullable for Basic Auth users.
         /// </summary>
         [MaxLength(255)]

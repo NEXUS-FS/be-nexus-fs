@@ -4,10 +4,13 @@ using Infrastructure.Services;
 using Infrastructure.Services.Observability;
 using Infrastructure.Services.Security;
 using Infrastructure.Services.UI;
+using Infrastructure.Configuration;
 using Domain.Repositories;
+using Application.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Clerk.Net;
 
 namespace Infrastructure;
 
@@ -53,6 +56,16 @@ public static class DependencyInjection
         // Security
         services.AddScoped<ACLManager>();
         services.AddScoped<AuthManager>();
+        
+        // Clerk Services - simplified for now
+        services.AddScoped<ClerkAuthStrategy>();
+        services.AddScoped<IClerkAuthService, ClerkAuthService>();
+        
+        // Clerk User Management Service
+        services.AddScoped<IClerkUserService, ClerkUserService>();
+        
+        // Hybrid User Service (combines DB and Clerk users)
+        services.AddScoped<HybridUserService>();
 
         // UI Services
         services.AddScoped<ProviderUIService>();

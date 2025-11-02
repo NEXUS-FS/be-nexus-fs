@@ -1,6 +1,7 @@
 using Application.Utils;
 using Application.UseCases.Users.Queries;
 using Application.UseCases.Users.CommandsHandler;
+using Application.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Application;
@@ -23,6 +24,9 @@ public static class DependencyInjection
         services.AddScoped<GetAllUsersHandler>();
         services.AddScoped<GetUserByUsernameHandler>();
         services.AddScoped<GetUserByEmailHandler>();
+
+        // Hybrid Services
+        services.AddScoped<IHybridUserService, HybridUserService>();
 
         return services;
     }

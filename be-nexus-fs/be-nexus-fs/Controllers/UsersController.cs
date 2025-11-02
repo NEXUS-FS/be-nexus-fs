@@ -1,15 +1,18 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Application.DTOs.User;
 using Application.DTOs.Common;
 using Application.UseCases.Users.CommandsHandler;
 using Application.UseCases.Users.Commands;
 using Application.UseCases.Users.Queries;
+using Application.Services;
 
 namespace be_nexus_fs.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
     [Produces("application/json")]
+    [Authorize] // Require authentication for all endpoints
     public class UsersController : ControllerBase
     {
         private readonly CreateUserHandler _createUserHandler;
@@ -21,6 +24,8 @@ namespace be_nexus_fs.Controllers
         private readonly GetUserByUsernameHandler _getUserByUsernameHandler;
         private readonly GetUserByEmailHandler _getUserByEmailHandler;
         private readonly ILogger<UsersController> _logger;
+        private readonly IHybridUserService _hybridUserService;
+        private readonly IClerkUserService _clerkUserService;
 
         public UsersController(
             CreateUserHandler createUserHandler,
@@ -31,7 +36,9 @@ namespace be_nexus_fs.Controllers
             GetAllUsersHandler getAllUsersHandler,
             GetUserByUsernameHandler getUserByUsernameHandler,
             GetUserByEmailHandler getUserByEmailHandler,
-            ILogger<UsersController> logger)
+            ILogger<UsersController> logger,
+            IHybridUserService hybridUserService,
+            IClerkUserService clerkUserService)
         {
             _createUserHandler = createUserHandler;
             _updateUserHandler = updateUserHandler;
@@ -42,6 +49,8 @@ namespace be_nexus_fs.Controllers
             _getUserByUsernameHandler = getUserByUsernameHandler;
             _getUserByEmailHandler = getUserByEmailHandler;
             _logger = logger;
+            _hybridUserService = hybridUserService;
+            _clerkUserService = clerkUserService;
         }
 
         /// <summary>
@@ -100,6 +109,7 @@ namespace be_nexus_fs.Controllers
         /// Create a new user.
         /// </summary>
         [HttpPost]
+        [AllowAnonymous] // Allow anonymous access for user registration
         [ProducesResponseType(typeof(UserDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<ActionResult<UserDto>> CreateUser([FromBody] CreateUserDto dto)
@@ -186,6 +196,7 @@ namespace be_nexus_fs.Controllers
         /// Authenticate a user.
         /// </summary>
         [HttpPost("login")]
+        [AllowAnonymous] // Allow anonymous access for login
         [ProducesResponseType(typeof(LoginUserResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<LoginUserResponse>> Login([FromBody] LoginUserCommand command)
@@ -254,6 +265,149 @@ namespace be_nexus_fs.Controllers
                 _logger.LogError(ex, "Error retrieving user by email {Email}", email);
                 return StatusCode(500, "An error occurred while retrieving the user");
             }
+        }
+
+        /// <summary>
+        /// Get users from both database and Clerk.
+        /// </summary>
+        [HttpGet("hybrid")]
+        [ProducesResponseType(typeof(PagedResponse<UserDto>), StatusCodes.Status200OK)]
+        public async Task<ActionResult<PagedResponse<UserDto>>> GetHybridUsers(
+            [FromQuery] bool includeClerkUsers = true,
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            try
+            {
+                var result = await _hybridUserService.GetAllUsersAsync(includeClerkUsers, pageNumber, pageSize);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving hybrid users");
+                return StatusCode(500, "An error occurred while retrieving users");
+            }
+        }
+
+        /// <summary>
+        /// Get user from Clerk by ID.
+        /// </summary>
+        [HttpGet("clerk/{userId}")]
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetClerkUser(string userId)
+        {
+            try
+            {
+                var clerkUser = await _clerkUserService.GetUserByIdAsync(userId);
+                if (clerkUser == null)
+                    return NotFound($"User '{userId}' not found in Clerk");
+
+                return Ok(clerkUser);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving user from Clerk {UserId}", userId);
+                return StatusCode(500, "An error occurred while retrieving the user from Clerk");
+            }
+        }
+
+        /// <summary>
+        /// Search users in Clerk.
+        /// </summary>
+        [HttpGet("clerk/search")]
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        public async Task<IActionResult> SearchClerkUsers(
+            [FromQuery] string query,
+            [FromQuery] int limit = 10,
+            [FromQuery] int offset = 0)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(query))
+                    return BadRequest("Query parameter is required");
+
+                var result = await _clerkUserService.SearchUsersAsync(query, limit, offset);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error searching users in Clerk with query {Query}", query);
+                return StatusCode(500, "An error occurred while searching users in Clerk");
+            }
+        }
+
+        /// <summary>
+        /// Sync a user from Clerk to the database.
+        /// </summary>
+        [HttpPost("sync-from-clerk/{clerkUserId}")]
+        [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<UserDto>> SyncUserFromClerk(string clerkUserId)
+        {
+            try
+            {
+                var result = await _hybridUserService.SyncUserFromClerkAsync(clerkUserId);
+                if (result == null)
+                    return NotFound($"User '{clerkUserId}' not found in Clerk");
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error syncing user from Clerk {ClerkUserId}", clerkUserId);
+                return StatusCode(500, "An error occurred while syncing the user from Clerk");
+            }
+        }
+
+        /// <summary>
+        /// Get current user information from JWT token.
+        /// </summary>
+        [HttpGet("me")]
+        [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<UserDto>> GetCurrentUser()
+        {
+            try
+            {
+                var clerkUserId = User.FindFirst("sub")?.Value;
+                if (string.IsNullOrEmpty(clerkUserId))
+                    return BadRequest("User ID not found in token");
+
+                // Try to get user from database, create if not exists
+                var user = await _hybridUserService.GetOrCreateUserFromClerkAsync(clerkUserId);
+                if (user == null)
+                    return NotFound("User not found");
+
+                return Ok(user);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving current user");
+                return StatusCode(500, "An error occurred while retrieving user information");
+            }
+        }
+
+        /// <summary>
+        /// Test endpoint to verify authentication is working.
+        /// </summary>
+        [HttpGet("test-auth")]
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public IActionResult TestAuth()
+        {
+            var userId = User.FindFirst("sub")?.Value;
+            var email = User.FindFirst("email")?.Value;
+            var name = User.FindFirst("name")?.Value;
+
+            return Ok(new
+            {
+                Message = "Authentication successful!",
+                UserId = userId,
+                Email = email,
+                Name = name,
+                Claims = User.Claims.Select(c => new { c.Type, c.Value }).ToList()
+            });
         }
     }
 }
