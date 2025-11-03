@@ -110,12 +110,22 @@ namespace Infrastructure.Repositories
                 if (duplicateEmail)
                     throw new InvalidOperationException($"Email '{user.Email}' already exists");
             }
-            
-            existingUser.Username = user.Username;
-            existingUser.Email = user.Email;
-            existingUser.Role = user.Role;
-            existingUser.IsActive = user.IsActive;
-            existingUser.LastLogin = user.LastLogin;
+
+            if (!string.IsNullOrWhiteSpace(user.Username))
+                existingUser.Username = user.Username;
+
+            if (!string.IsNullOrWhiteSpace(user.Email))
+                existingUser.Email = user.Email;
+
+            if (!string.IsNullOrWhiteSpace(user.Role))
+                existingUser.Role = user.Role;
+
+            if (user.IsActive != existingUser.IsActive)
+                existingUser.IsActive = user.IsActive;
+
+            if (user.LastLogin.HasValue && user.LastLogin != default(DateTime))
+                existingUser.LastLogin = user.LastLogin;
+
             existingUser.UpdatedAt = DateTime.UtcNow;
             
             if (!string.IsNullOrWhiteSpace(user.PasswordHash) && 
