@@ -2,6 +2,7 @@ using Application.Utils;
 using Application.UseCases.Users.Queries;
 using Application.UseCases.Users.CommandsHandler;
 using Microsoft.Extensions.DependencyInjection;
+using Application.UseCases.AuditLogs.Queries.GetAuditLogs;
 
 namespace Application;
 
@@ -23,6 +24,8 @@ public static class DependencyInjection
         services.AddScoped<GetAllUsersHandler>();
         services.AddScoped<GetUserByUsernameHandler>();
         services.AddScoped<GetUserByEmailHandler>();
+
+          services.AddScoped<GetAuditLogsHandler>();
 
         return services;
     }

@@ -1,6 +1,8 @@
 ﻿using Domain.Entities;
+using Infrastructure.Services.Observability;
 using Microsoft.EntityFrameworkCore;
 using System.Reflection;
+using System.Text.Json;
 
 namespace Infrastructure.Persistence;
 
@@ -25,4 +27,59 @@ public class NexusFSDbContext : DbContext
         // Automatically apply all IEntityTypeConfiguration from assembly
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
     }
+
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var auditEntries = new List<AuditLogEntity>();
+
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.Entity is AuditLogEntity)
+                continue;
+
+            // only track Added, Modified, Deleted entities
+            if (entry.State == EntityState.Added ||
+                entry.State == EntityState.Modified ||
+                entry.State == EntityState.Deleted)
+            {
+                var action = entry.State.ToString(); // "Added", "Modified", "Deleted"
+                var resource = entry.Entity.GetType().Name;
+                var userId = "SYSTEM"; //TODO actual user id here 
+                string? details = null;
+
+                try
+                {
+                  
+                    details = JsonSerializer.Serialize(entry.CurrentValues.ToObject());
+                }
+               catch (Exception ex)
+                {
+                    // Log serialization error in Details
+                    details = $"{{ \"SerializationError\": \"{ex.Message}\" }}";
+                }
+
+                auditEntries.Add(new AuditLogEntity
+                {
+                    Action = action,
+                    ResourcePath = resource,
+                    UserId = userId,
+                    Details = details,
+                    Timestamp = DateTime.UtcNow
+                });
+            }
+        }
+
+        // save original changes first
+        var result = await base.SaveChangesAsync(cancellationToken);
+
+        // save audit logs if any
+        if (auditEntries.Any())
+        {
+            AuditLogs.AddRange(auditEntries);
+            await base.SaveChangesAsync(cancellationToken);
+        }
+
+        return result;
+    }
 }
+
