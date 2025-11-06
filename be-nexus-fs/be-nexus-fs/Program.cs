@@ -42,10 +42,12 @@ using (var scope = app.Services.CreateScope())
     var seeder = services.GetRequiredService<DatabaseSeeder>();
 
     await seeder.SeedAsync();
-}
 
-    app.MapOpenApi();
-    
+}
+Console.WriteLine("Admin username (config): " + builder.Configuration["Seed:Admin:Username"]); //now this is in .env and in railway setup
+
+app.MapOpenApi();
+
 app.MapScalarApiReference(options =>
 {
     options
