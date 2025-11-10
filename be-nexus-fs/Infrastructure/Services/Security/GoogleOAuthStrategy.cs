@@ -1,14 +1,12 @@
-﻿
-
-
 /// <summary>
-/// Strategy Pattern implementation for Basic authentication.
+/// Strategy Pattern implementation for Google OAuth authentication.
 /// </summary>
+
 namespace Infrastructure.Services.Security
 {
-    public class BasicAuthStrategy : IAuthStrategy
+    public class GoogleOAuthStrategy : IAuthStrategy
     {
-        public string StrategyName => "Basic";
+        public string StrategyName => "OAuth";
 
         public Task<bool> AuthenticateAsync(Dictionary<string, string> credentials)
         {
