@@ -2,6 +2,9 @@ using Application;
 using Infrastructure;
 using Scalar.AspNetCore;
 using DotNetEnv;
+using Infrastructure.Persistence;
+using Microsoft.AspNetCore.Identity;
+using Domain.Entities;
 
 Env.Load();
 
@@ -26,10 +29,25 @@ builder.Services.AddCors(options =>
 });
 
 
+//we need those to register and waiting on Rares Password hasher instead of the .NET one for now..
+builder.Services.AddTransient<DatabaseSeeder>();
+builder.Services.AddScoped<IPasswordHasher<UserEntity>, PasswordHasher<UserEntity>>();
+
+
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var seeder = services.GetRequiredService<DatabaseSeeder>();
+
+    await seeder.SeedAsync();
+
+}
+Console.WriteLine("Admin username (config): " + builder.Configuration["Seed:Admin:Username"]); //now this is in .env and in railway setup
+
 app.MapOpenApi();
-    
+
 app.MapScalarApiReference(options =>
 {
     options
