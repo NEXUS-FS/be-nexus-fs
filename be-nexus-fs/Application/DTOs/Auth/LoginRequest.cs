@@ -13,7 +13,7 @@ namespace Application.DTOs.Auth
     public class LoginRequest //lets prefix this with DTO? LoginRequestDTO?..
     {
         [Required]
-        [StringLength(100, MinimumLength = 3)] //for ex max 100,min 3, we can toy arond
+        [StringLength(100, MinimumLength = 3)] //for ex max 100,min 3, we can toy around
         public string Username { get; set; } = string.Empty;
 
         [Required]
