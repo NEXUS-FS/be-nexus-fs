@@ -1,18 +1,18 @@
+using Application.DTOs.Auth;
+using Microsoft.OpenApi.Writers;
+
 namespace Application.UseCases.Users.Commands
 {
     public class LoginUserCommand
     {
-        public string Username { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
+        public LoginRequest LogRequest { get; set; } = new();
     }
 
     public class LoginUserResponse
     {
-        public string UserId { get; set; } = string.Empty;
-        public string Username { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
-        public string Role { get; set; } = string.Empty;
-        public string Token { get; set; } = string.Empty;
         public DateTime ExpiresAt { get; set; }
+        public LoginResponse LogResopnse { get; set; } = new();
+
+
     }
 }
