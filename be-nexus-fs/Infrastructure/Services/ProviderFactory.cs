@@ -34,13 +34,11 @@ namespace Infrastructure.Services
             return provider;
         }
 
-        // --- FIX IS HERE ---
         private Provider InstantiateProvider(string providerType, string providerId)
         {
             if (string.IsNullOrWhiteSpace(providerType))
                 throw new ArgumentException("Provider type cannot be empty", nameof(providerType));
 
-            // ADDED THIS CHECK to pass the "ShouldThrow_WhenIdIsMissing" test
             if (string.IsNullOrWhiteSpace(providerId))
                 throw new ArgumentException("Provider ID cannot be empty", nameof(providerId));
 
