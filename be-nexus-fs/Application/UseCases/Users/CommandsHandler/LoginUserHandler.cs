@@ -1,37 +1,56 @@
-using Domain.Repositories;
 using Application.UseCases.Users.Commands;
+using Application.DTOs.Auth;
+using Domain.Repositories;
 
-namespace Application.UseCases.Users.CommandsHandler
+public class LoginUserHandler
 {
-    public class LoginUserHandler
+    private readonly IUserRepository _userRepository;
+
+    public LoginUserHandler(IUserRepository userRepository)
     {
-        private readonly IUserRepository _userRepository;
+        _userRepository = userRepository;
+    }
 
-        public LoginUserHandler(IUserRepository userRepository)
+    public async Task<LoginUserResponse> HandleAsync(LoginUserCommand command)
+    {
+        var loginDto = command.loginRequest;
+
+        var user = await _userRepository.ValidateCredentialsAsync(
+            loginDto.Username,
+            loginDto.Password
+        );
+
+        if (user == null)
+            throw new UnauthorizedAccessException("Invalid username or password.");
+
+        await _userRepository.UpdateLastLoginAsync(user.Id);
+
+        LoginUserResponse lg= new LoginUserResponse();
+        
+
+        var loginResponse =lg.loginResponse;
         {
-            _userRepository = userRepository;
-        }
+         var   AccessToken = "TODO-GENERATE-JWT-TOKEN";
+          var  RefreshToken = "TODO-GENERATE-REFRESH-TOKEN";
 
-        public async Task<LoginUserResponse> HandleAsync(LoginUserCommand command)
-        {
-            // Validate credentials in repository (where BCrypt is)
-            var user = await _userRepository.ValidateCredentialsAsync(command.Username, command.Password);
-
-            if (user == null)
-                throw new UnauthorizedAccessException("Invalid username or password");
-
-            // Update last login
-            await _userRepository.UpdateLastLoginAsync(user.Id);
-
-            return new LoginUserResponse
+           var User = new Application.DTOs.User.UserDto
             {
-                UserId = user.Id,
+                Id = user.Id,
                 Username = user.Username,
                 Email = user.Email,
                 Role = user.Role,
-                Token = "TODO-GENERATE-JWT-TOKEN",
-                ExpiresAt = DateTime.UtcNow.AddHours(24)
+                CreatedAt = user.CreatedAt,
+                IsActive = user.IsActive
             };
-        }
+            loginResponse.AccessToken = AccessToken;
+            loginResponse.RefreshToken = RefreshToken;
+            loginResponse.User = User;
+
+        };
+
+        return new LoginUserResponse
+        {
+            loginResponse = loginResponse
+        };
     }
 }
