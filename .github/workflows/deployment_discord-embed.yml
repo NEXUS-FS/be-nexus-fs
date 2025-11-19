@@ -2,7 +2,9 @@ name: Discord Deployment Notifications
 
 on:
   workflow_run:
-    workflows: ["CI/CD"]
+    workflows:
+      - "Deploy to Railway Dev"
+      - "Deploy to Railway Prod"
     types:
       - completed
     branches: [main, dev]
