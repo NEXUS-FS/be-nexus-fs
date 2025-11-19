@@ -1,4 +1,4 @@
-using Application.Services;
+using Domain.Repositories;
 using Application.UseCases.FileOperations.Commands;
 using Microsoft.Extensions.Logging;
 
@@ -9,14 +9,14 @@ namespace Application.UseCases.FileOperations.CommandsHandler
     /// </summary>
     public class ReadFileHandler
     {
-        private readonly IFileOperationService _fileOperationService;
+        private readonly IFileOperationRepository _fileOperationRepository;
         private readonly ILogger<ReadFileHandler> _logger;
 
         public ReadFileHandler(
-            IFileOperationService fileOperationService,
+            IFileOperationRepository fileOperationRepository,
             ILogger<ReadFileHandler> logger)
         {
-            _fileOperationService = fileOperationService;
+            _fileOperationRepository = fileOperationRepository;
             _logger = logger;
         }
 
@@ -29,7 +29,7 @@ namespace Application.UseCases.FileOperations.CommandsHandler
 
             try
             {
-                if (!await _fileOperationService.ProviderExistsAsync(request.ProviderId))
+                if (!await _fileOperationRepository.ProviderExistsAsync(request.ProviderId))
                 {
                     return new ReadFileCommandResponse
                     {
@@ -39,7 +39,7 @@ namespace Application.UseCases.FileOperations.CommandsHandler
                     };
                 }
 
-                var content = await _fileOperationService.ReadFileAsync(request.ProviderId, request.FilePath);
+                var content = await _fileOperationRepository.ReadFileAsync(request.ProviderId, request.FilePath);
 
                 return new ReadFileCommandResponse
                 {

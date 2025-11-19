@@ -1,4 +1,4 @@
-using Application.Services;
+using Domain.Repositories;
 using Application.UseCases.FileOperations.Commands;
 using Microsoft.Extensions.Logging;
 
@@ -9,14 +9,14 @@ namespace Application.UseCases.FileOperations.CommandsHandler
     /// </summary>
     public class ListFilesHandler
     {
-        private readonly IFileOperationService _fileOperationService;
+        private readonly IFileOperationRepository _fileOperationRepository;
         private readonly ILogger<ListFilesHandler> _logger;
 
         public ListFilesHandler(
-            IFileOperationService fileOperationService,
+            IFileOperationRepository fileOperationRepository,
             ILogger<ListFilesHandler> logger)
         {
-            _fileOperationService = fileOperationService;
+            _fileOperationRepository = fileOperationRepository;
             _logger = logger;
         }
 
@@ -29,7 +29,7 @@ namespace Application.UseCases.FileOperations.CommandsHandler
 
             try
             {
-                if (!await _fileOperationService.ProviderExistsAsync(request.ProviderId))
+                if (!await _fileOperationRepository.ProviderExistsAsync(request.ProviderId))
                 {
                     return new ListFilesCommandResponse
                     {
@@ -39,7 +39,7 @@ namespace Application.UseCases.FileOperations.CommandsHandler
                     };
                 }
 
-                var files = await _fileOperationService.ListFilesAsync(request.ProviderId, request.DirectoryPath, request.Recursive);
+                var files = await _fileOperationRepository.ListFilesAsync(request.ProviderId, request.DirectoryPath, request.Recursive);
 
                 return new ListFilesCommandResponse
                 {

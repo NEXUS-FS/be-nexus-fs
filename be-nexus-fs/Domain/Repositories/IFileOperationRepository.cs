@@ -1,10 +1,10 @@
-namespace Application.Services
+namespace Domain.Repositories
 {
     /// <summary>
-    /// Service interface for file operations on storage providers.
+    /// Repository interface for file operations on storage providers.
     /// Abstracts provider management from the Application layer.
     /// </summary>
-    public interface IFileOperationService
+    public interface IFileOperationRepository
     {
         /// <summary>
         /// Reads a file from the specified provider.

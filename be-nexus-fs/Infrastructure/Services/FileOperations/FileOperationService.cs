@@ -1,4 +1,3 @@
-using Application.Services;
 using Domain.Repositories;
 using Infrastructure.Services;
 using System.Text.Json;
@@ -6,14 +5,14 @@ using System.Text.Json;
 namespace Infrastructure.Services.FileOperations
 {
     /// <summary>
-    /// Implementation of file operation service that manages provider interaction.
+    /// Implementation of file operation repository that manages provider interaction.
     /// </summary>
-    public class FileOperationService : IFileOperationService
+    public class FileOperationRepository : IFileOperationRepository
     {
         private readonly IProviderRepository _providerRepository;
         private readonly ProviderFactory _providerFactory;
 
-        public FileOperationService(
+        public FileOperationRepository(
             IProviderRepository providerRepository,
             ProviderFactory providerFactory)
         {

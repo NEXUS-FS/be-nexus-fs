@@ -1,4 +1,4 @@
-using Application.Services;
+using Domain.Repositories;
 using Application.UseCases.FileOperations.Commands;
 using Microsoft.Extensions.Logging;
 
@@ -9,14 +9,14 @@ namespace Application.UseCases.FileOperations.CommandsHandler
     /// </summary>
     public class DeleteFileHandler
     {
-        private readonly IFileOperationService _fileOperationService;
+        private readonly IFileOperationRepository _fileOperationRepository;
         private readonly ILogger<DeleteFileHandler> _logger;
 
         public DeleteFileHandler(
-            IFileOperationService fileOperationService,
+            IFileOperationRepository fileOperationRepository,
             ILogger<DeleteFileHandler> logger)
         {
-            _fileOperationService = fileOperationService;
+            _fileOperationRepository = fileOperationRepository;
             _logger = logger;
         }
 
@@ -29,7 +29,7 @@ namespace Application.UseCases.FileOperations.CommandsHandler
 
             try
             {
-                if (!await _fileOperationService.ProviderExistsAsync(request.ProviderId))
+                if (!await _fileOperationRepository.ProviderExistsAsync(request.ProviderId))
                 {
                     return new DeleteFileCommandResponse
                     {
@@ -39,7 +39,7 @@ namespace Application.UseCases.FileOperations.CommandsHandler
                     };
                 }
 
-                await _fileOperationService.DeleteFileAsync(request.ProviderId, request.FilePath);
+                await _fileOperationRepository.DeleteFileAsync(request.ProviderId, request.FilePath);
 
                 return new DeleteFileCommandResponse
                 {
