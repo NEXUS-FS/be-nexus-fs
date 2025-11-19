@@ -3,6 +3,9 @@ using Application.UseCases.Users.Queries;
 using Application.UseCases.Users.CommandsHandler;
 using Microsoft.Extensions.DependencyInjection;
 using Application.UseCases.AuditLogs.Queries.GetAuditLogs;
+using FluentValidation;
+using FluentValidation.AspNetCore;
+using Application.DTOs.FileOperations.Validators;
 
 namespace Application;
 
@@ -25,7 +28,12 @@ public static class DependencyInjection
         services.AddScoped<GetUserByUsernameHandler>();
         services.AddScoped<GetUserByEmailHandler>();
 
-          services.AddScoped<GetAuditLogsHandler>();
+        services.AddScoped<GetAuditLogsHandler>();
+
+        // FluentValidation
+        services.AddFluentValidationAutoValidation();
+        services.AddFluentValidationClientsideAdapters();
+        services.AddValidatorsFromAssemblyContaining<ReadFileRequestValidator>();
 
         return services;
     }
