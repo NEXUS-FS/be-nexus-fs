@@ -1,9 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Application.DTOs;
 using Application.DTOs.FileOperations;
-using Domain.Repositories;
-using Infrastructure.Services;
-using System.Text.Json;
+using Application.UseCases.FileOperations.Commands;
+using Application.UseCases.FileOperations.CommandsHandler;
 
 namespace be_nexus_fs.Controllers
 {
@@ -15,17 +13,23 @@ namespace be_nexus_fs.Controllers
     [Produces("application/json")]
     public class FileOperationsController : ControllerBase
     {
-        private readonly IProviderRepository _providerRepository;
-        private readonly ProviderFactory _providerFactory;
+        private readonly ReadFileHandler _readFileHandler;
+        private readonly WriteFileHandler _writeFileHandler;
+        private readonly DeleteFileHandler _deleteFileHandler;
+        private readonly ListFilesHandler _listFilesHandler;
         private readonly ILogger<FileOperationsController> _logger;
 
         public FileOperationsController(
-            IProviderRepository providerRepository,
-            ProviderFactory providerFactory,
+            ReadFileHandler readFileHandler,
+            WriteFileHandler writeFileHandler,
+            DeleteFileHandler deleteFileHandler,
+            ListFilesHandler listFilesHandler,
             ILogger<FileOperationsController> logger)
         {
-            _providerRepository = providerRepository;
-            _providerFactory = providerFactory;
+            _readFileHandler = readFileHandler;
+            _writeFileHandler = writeFileHandler;
+            _deleteFileHandler = deleteFileHandler;
+            _listFilesHandler = listFilesHandler;
             _logger = logger;
         }
 
@@ -39,61 +43,36 @@ namespace be_nexus_fs.Controllers
         /// <response code="404">Provider or file not found</response>
         /// <response code="500">Internal server error</response>
         [HttpPost("read")]
-        [ProducesResponseType(typeof(FileOperationResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ReadFileCommandResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<FileOperationResponse>> ReadFile([FromBody] ReadFileRequest request)
+        public async Task<ActionResult<ReadFileCommandResponse>> ReadFile([FromBody] ReadFileRequest request)
         {
             try
             {
-                _logger.LogInformation("Reading file {FilePath} from provider {ProviderId} for user {UserId}",
-                    request.FilePath, request.ProviderId, request.UserId);
+                var command = new ReadFileCommand { Request = request };
+                var result = await _readFileHandler.HandleAsync(command);
 
-                var provider = await GetProviderInstanceAsync(request.ProviderId);
-                if (provider == null)
+                if (!result.Success)
                 {
-                    return NotFound(new FileOperationResponse
+                    if (result.Message?.Contains("not found") == true)
                     {
-                        Success = false,
-                        Message = $"Provider '{request.ProviderId}' not found",
-                        Timestamp = DateTime.UtcNow,
-                        Operation = Application.Common.FileOperation.Read
-                    });
+                        return NotFound(result);
+                    }
+                    return BadRequest(result);
                 }
 
-                var content = await provider.ReadFileAsync(request.FilePath);
-
-                return Ok(new FileOperationResponse
-                {
-                    Success = true,
-                    Message = "File read successfully",
-                    Content = content,
-                    Timestamp = DateTime.UtcNow,
-                    Operation = Application.Common.FileOperation.Read
-                });
-            }
-            catch (FileNotFoundException ex)
-            {
-                _logger.LogWarning(ex, "File not found: {FilePath}", request.FilePath);
-                return NotFound(new FileOperationResponse
-                {
-                    Success = false,
-                    Message = $"File not found: {ex.Message}",
-                    Timestamp = DateTime.UtcNow,
-                    Operation = Application.Common.FileOperation.Read
-                });
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error reading file {FilePath} from provider {ProviderId}",
-                    request.FilePath, request.ProviderId);
-                return StatusCode(500, new FileOperationResponse
+                _logger.LogError(ex, "Error in ReadFile endpoint");
+                return StatusCode(500, new ReadFileCommandResponse
                 {
                     Success = false,
-                    Message = $"Error reading file: {ex.Message}",
-                    Timestamp = DateTime.UtcNow,
-                    Operation = Application.Common.FileOperation.Read
+                    Message = $"Internal server error: {ex.Message}",
+                    Timestamp = DateTime.UtcNow
                 });
             }
         }
@@ -108,49 +87,36 @@ namespace be_nexus_fs.Controllers
         /// <response code="404">Provider not found</response>
         /// <response code="500">Internal server error</response>
         [HttpPost("write")]
-        [ProducesResponseType(typeof(FileOperationResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(WriteFileCommandResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<FileOperationResponse>> WriteFile([FromBody] WriteFileRequest request)
+        public async Task<ActionResult<WriteFileCommandResponse>> WriteFile([FromBody] WriteFileRequest request)
         {
             try
             {
-                _logger.LogInformation("Writing file {FilePath} to provider {ProviderId} for user {UserId}",
-                    request.FilePath, request.ProviderId, request.UserId);
+                var command = new WriteFileCommand { Request = request };
+                var result = await _writeFileHandler.HandleAsync(command);
 
-                var provider = await GetProviderInstanceAsync(request.ProviderId);
-                if (provider == null)
+                if (!result.Success)
                 {
-                    return NotFound(new FileOperationResponse
+                    if (result.Message?.Contains("not found") == true)
                     {
-                        Success = false,
-                        Message = $"Provider '{request.ProviderId}' not found",
-                        Timestamp = DateTime.UtcNow,
-                        Operation = Application.Common.FileOperation.Write
-                    });
+                        return NotFound(result);
+                    }
+                    return BadRequest(result);
                 }
 
-                await provider.WriteFileAsync(request.FilePath, request.Content);
-
-                return Ok(new FileOperationResponse
-                {
-                    Success = true,
-                    Message = "File written successfully",
-                    Timestamp = DateTime.UtcNow,
-                    Operation = Application.Common.FileOperation.Write
-                });
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error writing file {FilePath} to provider {ProviderId}",
-                    request.FilePath, request.ProviderId);
-                return StatusCode(500, new FileOperationResponse
+                _logger.LogError(ex, "Error in WriteFile endpoint");
+                return StatusCode(500, new WriteFileCommandResponse
                 {
                     Success = false,
-                    Message = $"Error writing file: {ex.Message}",
-                    Timestamp = DateTime.UtcNow,
-                    Operation = Application.Common.FileOperation.Write
+                    Message = $"Internal server error: {ex.Message}",
+                    Timestamp = DateTime.UtcNow
                 });
             }
         }
@@ -165,60 +131,36 @@ namespace be_nexus_fs.Controllers
         /// <response code="404">Provider or file not found</response>
         /// <response code="500">Internal server error</response>
         [HttpDelete]
-        [ProducesResponseType(typeof(FileOperationResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(DeleteFileCommandResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<FileOperationResponse>> DeleteFile([FromBody] DeleteFileRequest request)
+        public async Task<ActionResult<DeleteFileCommandResponse>> DeleteFile([FromBody] DeleteFileRequest request)
         {
             try
             {
-                _logger.LogInformation("Deleting file {FilePath} from provider {ProviderId} for user {UserId}",
-                    request.FilePath, request.ProviderId, request.UserId);
+                var command = new DeleteFileCommand { Request = request };
+                var result = await _deleteFileHandler.HandleAsync(command);
 
-                var provider = await GetProviderInstanceAsync(request.ProviderId);
-                if (provider == null)
+                if (!result.Success)
                 {
-                    return NotFound(new FileOperationResponse
+                    if (result.Message?.Contains("not found") == true)
                     {
-                        Success = false,
-                        Message = $"Provider '{request.ProviderId}' not found",
-                        Timestamp = DateTime.UtcNow,
-                        Operation = Application.Common.FileOperation.Delete
-                    });
+                        return NotFound(result);
+                    }
+                    return BadRequest(result);
                 }
 
-                await provider.DeleteFileAsync(request.FilePath);
-
-                return Ok(new FileOperationResponse
-                {
-                    Success = true,
-                    Message = "File deleted successfully",
-                    Timestamp = DateTime.UtcNow,
-                    Operation = Application.Common.FileOperation.Delete
-                });
-            }
-            catch (FileNotFoundException ex)
-            {
-                _logger.LogWarning(ex, "File not found: {FilePath}", request.FilePath);
-                return NotFound(new FileOperationResponse
-                {
-                    Success = false,
-                    Message = $"File not found: {ex.Message}",
-                    Timestamp = DateTime.UtcNow,
-                    Operation = Application.Common.FileOperation.Delete
-                });
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error deleting file {FilePath} from provider {ProviderId}",
-                    request.FilePath, request.ProviderId);
-                return StatusCode(500, new FileOperationResponse
+                _logger.LogError(ex, "Error in DeleteFile endpoint");
+                return StatusCode(500, new DeleteFileCommandResponse
                 {
                     Success = false,
-                    Message = $"Error deleting file: {ex.Message}",
-                    Timestamp = DateTime.UtcNow,
-                    Operation = Application.Common.FileOperation.Delete
+                    Message = $"Internal server error: {ex.Message}",
+                    Timestamp = DateTime.UtcNow
                 });
             }
         }
@@ -236,11 +178,11 @@ namespace be_nexus_fs.Controllers
         /// <response code="404">Provider or directory not found</response>
         /// <response code="500">Internal server error</response>
         [HttpGet("list")]
-        [ProducesResponseType(typeof(ListFilesResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ListFilesCommandResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<ListFilesResponse>> ListFiles(
+        public async Task<ActionResult<ListFilesCommandResponse>> ListFiles(
             [FromQuery] string providerId,
             [FromQuery] string directoryPath,
             [FromQuery] bool recursive = false,
@@ -250,7 +192,7 @@ namespace be_nexus_fs.Controllers
             {
                 if (string.IsNullOrWhiteSpace(providerId))
                 {
-                    return BadRequest(new ListFilesResponse
+                    return BadRequest(new ListFilesCommandResponse
                     {
                         Success = false,
                         Message = "ProviderId is required",
@@ -260,7 +202,7 @@ namespace be_nexus_fs.Controllers
 
                 if (string.IsNullOrWhiteSpace(directoryPath))
                 {
-                    return BadRequest(new ListFilesResponse
+                    return BadRequest(new ListFilesCommandResponse
                     {
                         Success = false,
                         Message = "DirectoryPath is required",
@@ -268,76 +210,38 @@ namespace be_nexus_fs.Controllers
                     });
                 }
 
-                _logger.LogInformation("Listing files in {DirectoryPath} from provider {ProviderId} for user {UserId}",
-                    directoryPath, providerId, userId);
-
-                var provider = await GetProviderInstanceAsync(providerId);
-                if (provider == null)
+                var request = new ListFilesRequest
                 {
-                    return NotFound(new ListFilesResponse
+                    ProviderId = providerId,
+                    DirectoryPath = directoryPath,
+                    Recursive = recursive,
+                    UserId = userId ?? string.Empty
+                };
+
+                var command = new ListFilesCommand { Request = request };
+                var result = await _listFilesHandler.HandleAsync(command);
+
+                if (!result.Success)
+                {
+                    if (result.Message?.Contains("not found") == true)
                     {
-                        Success = false,
-                        Message = $"Provider '{providerId}' not found",
-                        Timestamp = DateTime.UtcNow
-                    });
+                        return NotFound(result);
+                    }
+                    return BadRequest(result);
                 }
 
-                var files = await provider.ListFilesAsync(directoryPath, recursive);
-
-                return Ok(new ListFilesResponse
-                {
-                    Success = true,
-                    Message = "Files listed successfully",
-                    Files = files,
-                    DirectoryPath = directoryPath,
-                    Timestamp = DateTime.UtcNow
-                });
-            }
-            catch (DirectoryNotFoundException ex)
-            {
-                _logger.LogWarning(ex, "Directory not found: {DirectoryPath}", directoryPath);
-                return NotFound(new ListFilesResponse
-                {
-                    Success = false,
-                    Message = $"Directory not found: {ex.Message}",
-                    Timestamp = DateTime.UtcNow
-                });
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error listing files in {DirectoryPath} from provider {ProviderId}",
-                    directoryPath, providerId);
-                return StatusCode(500, new ListFilesResponse
+                _logger.LogError(ex, "Error in ListFiles endpoint");
+                return StatusCode(500, new ListFilesCommandResponse
                 {
                     Success = false,
-                    Message = $"Error listing files: {ex.Message}",
+                    Message = $"Internal server error: {ex.Message}",
                     Timestamp = DateTime.UtcNow
                 });
             }
-        }
-
-        /// <summary>
-        /// Helper method to get a provider instance from the repository.
-        /// </summary>
-        private async Task<Provider?> GetProviderInstanceAsync(string providerId)
-        {
-            var providerEntity = await _providerRepository.GetByIdAsync(providerId);
-            if (providerEntity == null || !providerEntity.IsActive)
-            {
-                return null;
-            }
-
-            var configuration = string.IsNullOrWhiteSpace(providerEntity.Configuration)
-                ? new Dictionary<string, string>()
-                : JsonSerializer.Deserialize<Dictionary<string, string>>(providerEntity.Configuration)
-                  ?? new Dictionary<string, string>();
-
-            var provider = await _providerFactory.CreateProviderAsync(
-                providerEntity.Type,
-                providerEntity.Id,
-                configuration);
-
-            return provider;
         }
     }
 }
