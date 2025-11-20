@@ -21,19 +21,27 @@ public class AuditLogRepository : IAuditLogRepository
         return auditLog;
     }
 
-    public async Task<IEnumerable<AuditLogEntity>> GetByEntityIdAsync(string entityId, DateTime since)
+    public async Task<IEnumerable<AuditLogEntity>> GetByUserIdAsync(string userId, DateTime since)
     {
         return await _context.AuditLogs
-            .Where(log => log.UserId == entityId && log.Timestamp >= since)
+            .Where(log => log.UserId == userId && log.Timestamp >= since)
             .OrderByDescending(log => log.Timestamp)
             .ToListAsync();
     }
 
-    public async Task<IEnumerable<AuditLogEntity>> GetAllAsync(DateTime since)
+    public async Task<IEnumerable<AuditLogEntity>> GetByDateRangeAsync(DateTime from, DateTime to)
     {
         return await _context.AuditLogs
-            .Where(log => log.Timestamp >= since)
+            .Where(log => log.Timestamp >= from && log.Timestamp <= to)
             .OrderByDescending(log => log.Timestamp)
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<AuditLogEntity>> GetRecentAsync(int count = 50)
+    {
+        return await _context.AuditLogs
+            .OrderByDescending(log => log.Timestamp)
+            .Take(count)
             .ToListAsync();
     }
 }

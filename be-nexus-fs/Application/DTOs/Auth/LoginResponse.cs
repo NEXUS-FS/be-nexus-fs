@@ -10,14 +10,20 @@ namespace Application.DTOs.Auth
 
     public class LoginResponse
     {
+
         [Required]
         public string AccessToken { get; set; } = string.Empty;
 
         [Required]
         public string RefreshToken { get; set; } = string.Empty;
 
+
+        [Required]
+        public DateTime ExpiresAt { get; set; }
         //user info is the UserDto obj or smth else?
         [Required]
         public UserDto User { get; set; } = new UserDto();
+
+
     }
 }
