@@ -1,17 +1,15 @@
+
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using Amazon;
 using Amazon.S3;
 using Amazon.S3.Model;
+using DotNetEnv; 
 using Infrastructure.Services;
 using Xunit;
 
-
-/** * Note: These tests require LocalStack to be running with S3 service enabled.
- * LocalStack can be started via Docker:
- */
- /*
 namespace NexusFS.Tests
 {
     public class S3ProviderTests : IDisposable
@@ -19,138 +17,169 @@ namespace NexusFS.Tests
         private readonly S3Provider _provider;
         private readonly string _bucketName;
         private readonly AmazonS3Client _setupClient;
+        private readonly bool _isSharedBucket;
 
         public S3ProviderTests()
         {
-            _bucketName = $"test-bucket-{Guid.NewGuid()}";
+           
+            var currentDir = AppContext.BaseDirectory;
+            var envPath = Path.Combine(currentDir, ".env");
 
-            Console.WriteLine($"[Setup] Initializing test with Bucket: {_bucketName}");
 
-            // 1. Setup Local Client
+            if (!File.Exists(envPath))
+            {
+                var projectRoot = Path.GetFullPath(Path.Combine(currentDir, "../../../"));
+                envPath = Path.Combine(projectRoot, ".env");
+            }
+
+            Console.WriteLine($"[Setup] Loading .env from: {envPath}");
+            Env.Load(envPath);
+
+         
+            var accessKey = Environment.GetEnvironmentVariable("AWS__ACCESS_KEY_ID") ?? "dummy-access";
+            var secretKey = Environment.GetEnvironmentVariable("AWS__SECRET_ACCESS_KEY") ?? "dummy-secret";
+            var regionName = Environment.GetEnvironmentVariable("AWS__S3__REGION") ?? "eu-north-1";
+            var envBucket = Environment.GetEnvironmentVariable("AWS__S3__BUCKET_NAME") ?? "DUMMY_BUCKET";
+
+            Console.WriteLine($"[Config] Access Key Found: {!string.IsNullOrEmpty(accessKey)}");
+            Console.WriteLine($"[Config] Secret Key Found: {!string.IsNullOrEmpty(secretKey)}");
+            Console.WriteLine($"[Config] Region: {regionName}");
+            Console.WriteLine($"[Config] Bucket: {envBucket}");
+
+            if (string.IsNullOrWhiteSpace(accessKey) || string.IsNullOrWhiteSpace(secretKey))
+            {
+                throw new InvalidOperationException(
+                    $"AWS Credentials missing. Tried loading from: {envPath}. " +
+                    "Ensure .env exists and contains AWS__ACCESS_KEY_ID and AWS__SECRET_ACCESS_KEY.");
+            }
+
+          
+        
+            if (!string.IsNullOrWhiteSpace(envBucket))
+            {
+                _bucketName = envBucket;
+                _isSharedBucket = true;
+            }
+            else
+            {
+                _bucketName = $"test-bucket-{Guid.NewGuid()}";
+                _isSharedBucket = false;
+            }
+
             var s3Config = new AmazonS3Config
             {
-                ServiceURL = "http://localhost:4566",
-                ForcePathStyle = true
+                RegionEndpoint = RegionEndpoint.GetBySystemName(regionName)
             };
-            
+
             try
             {
-                _setupClient = new AmazonS3Client("test", "test", s3Config);
-                _setupClient.PutBucketAsync(_bucketName).Wait();
-                Console.WriteLine("[Setup] Bucket created successfully in LocalStack.");
+                _setupClient = new AmazonS3Client(accessKey, secretKey, s3Config);
+
+                if (!_isSharedBucket)
+                {
+                    _setupClient.PutBucketAsync(_bucketName).Wait();
+                    Console.WriteLine($"[Setup] Created temporary bucket: {_bucketName}");
+                }
+                else
+                {
+                   
+                    _setupClient.GetBucketLocationAsync(_bucketName).Wait();
+                    Console.WriteLine($"[Setup] Connected to shared bucket: {_bucketName}");
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Setup] FATAL ERROR: Could not connect to LocalStack. {ex.Message}");
+                Console.WriteLine($"[Setup] FATAL AWS ERROR: {ex.Message}");
                 throw;
             }
 
-            // 2. Configure Provider..testing ..
-            var config = new Dictionary<string, string>
+            
+            var configDict = new Dictionary<string, string>
             {
-                { "serviceUrl", "http://localhost:4566" },
-                { "accessKey", "test" },
-                { "secretKey", "test" },
+                { "accessKey", accessKey },
+                { "secretKey", secretKey },
                 { "bucketName", _bucketName },
-                { "region", "us-east-1" }
+                { "region", regionName }
             };
 
             _provider = new S3Provider("s3-test-id");
-            _provider.Initialize(config).Wait();
-            Console.WriteLine("[Setup] Provider initialized.");
+            _provider.Initialize(configDict).Wait();
         }
 
         public void Dispose()
         {
-            Console.WriteLine("[Teardown] Cleaning up resources...");
+            Console.WriteLine("[Teardown] Cleaning up...");
             try
             {
-                var objects = _setupClient.ListObjectsAsync(_bucketName).Result;
-                foreach (var obj in objects.S3Objects)
+              
+                var listRequest = new ListObjectsV2Request { BucketName = _bucketName };
+                ListObjectsV2Response listResponse;
+                
+                do
                 {
-                    _setupClient.DeleteObjectAsync(_bucketName, obj.Key).Wait();
+                    listResponse = _setupClient.ListObjectsV2Async(listRequest).Result;
+                    foreach (var obj in listResponse.S3Objects)
+                    {
+                        _setupClient.DeleteObjectAsync(_bucketName, obj.Key).Wait();
+                    }
+                    listRequest.ContinuationToken = listResponse.NextContinuationToken;
+                } while (listResponse.IsTruncated == true);
+
+
+                if (!_isSharedBucket)
+                {
+                    _setupClient.DeleteBucketAsync(_bucketName).Wait();
+                    Console.WriteLine("[Teardown] Temporary bucket deleted.");
                 }
-                _setupClient.DeleteBucketAsync(_bucketName).Wait();
-                Console.WriteLine("[Teardown] Bucket deleted.");
+                else
+                {
+                    Console.WriteLine("[Teardown] Shared bucket preserved (files cleaned).");
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Teardown] Warning: Cleanup failed. {ex.Message}");
+                Console.WriteLine($"[Teardown] Warning: {ex.Message}");
             }
-            _setupClient.Dispose();
+            finally
+            {
+                _setupClient.Dispose();
+            }
         }
 
         [Fact]
         public async Task WriteAndRead_ShouldPersistFile()
         {
-            Console.WriteLine("--> TEST START: WriteAndRead_ShouldPersistFile");
-            
-            var fileName = "hello.txt";
-            var content = "Hello S3 World";
+            // Arrange
+            var fileName = $"test-{Guid.NewGuid()}.txt";
+            var content = "Integration Test Content";
 
             // Act
-            Console.WriteLine($"Attempting to write file: {fileName}");
             await _provider.WriteFileAsync(fileName, content);
-            Console.WriteLine("Write complete.");
-
-            Console.WriteLine("Attempting to read file back...");
             var result = await _provider.ReadFileAsync(fileName);
-            Console.WriteLine($"Read complete. Content: {result}");
 
             // Assert
             Assert.Equal(content, result);
-            Console.WriteLine("--> TEST PASS");
         }
 
         [Fact]
         public async Task ReadFile_ShouldThrow_WhenFileDoesNotExist()
         {
-            Console.WriteLine("--> TEST START: ReadFile_ShouldThrow_WhenFileDoesNotExist");
-            
-            var missingFile = "ghost_file.txt";
-            Console.WriteLine($"Attempting to read missing file: {missingFile}");
-
-            await Assert.ThrowsAsync<FileNotFoundException>(async () =>
-            {
-                try 
-                {
-                    await _provider.ReadFileAsync(missingFile);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Caught expected exception: {ex.GetType().Name} - {ex.Message}");
-                    throw; // Re-throw for Assert.ThrowsAsync to catch
-                }
-            });
-            
-            Console.WriteLine("--> TEST PASS");
+            var missingFile = $"ghost-{Guid.NewGuid()}.txt";
+            await Assert.ThrowsAsync<FileNotFoundException>(async () => 
+                await _provider.ReadFileAsync(missingFile));
         }
 
         [Fact]
         public async Task ListFiles_ShouldHandleFolders_Recursive()
         {
-            Console.WriteLine("--> TEST START: ListFiles_ShouldHandleFolders_Recursive");
+            var prefix = $"run-{Guid.NewGuid()}/";
+            await _provider.WriteFileAsync($"{prefix}root.txt", "1");
+            await _provider.WriteFileAsync($"{prefix}sub/doc.txt", "2");
 
-            // Arrange
-            Console.WriteLine("Seeding files...");
-            await _provider.WriteFileAsync("root.txt", "1");
-            await _provider.WriteFileAsync("docs/report.pdf", "2");
-            await _provider.WriteFileAsync("docs/2023/budget.xls", "3");
-
-            // Act
-            Console.WriteLine("Listing files in 'docs' (recursive=true)...");
-            var files = await _provider.ListFilesAsync("docs", recursive: true);
-
-            Console.WriteLine($"Found {files.Count} files:");
-            foreach(var f in files) Console.WriteLine($" - {f}");
-
-            // Assert
-            Assert.Contains("docs/report.pdf", files);
-            Assert.Contains("docs/2023/budget.xls", files);
-            Assert.DoesNotContain("root.txt", files);
+            var files = await _provider.ListFilesAsync(prefix, recursive: true);
             
-            Console.WriteLine("--> TEST PASS");
+            Assert.Contains(files, f => f.EndsWith("root.txt"));
+            Assert.Contains(files, f => f.EndsWith("sub/doc.txt"));
         }
     }
 }
-*/
