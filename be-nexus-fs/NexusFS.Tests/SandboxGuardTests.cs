@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Application.Common;
+using Domain.Repositories;
 using Infrastructure.Services.Observability;
 using Infrastructure.Services.Security;
 using Moq;
@@ -14,19 +15,19 @@ namespace NexusFS.Tests
     /// </summary>
     public class SandboxGuardTests
     {
-        private readonly Mock<IACLManager> _mockAclManager;
+        private readonly Mock<IAccessControlRepository> _mockAccessControlRepository;
         private readonly Mock<Logger> _mockLogger;
         private readonly SandboxGuard _sandboxGuard;
 
         public SandboxGuardTests()
         {
-            _mockAclManager = new Mock<IACLManager>();
+            _mockAccessControlRepository = new Mock<IAccessControlRepository>();
             
             // Mock Logger with required constructor parameter
             var mockAuditLogRepository = new Mock<Domain.Repositories.IAuditLogRepository>();
             _mockLogger = new Mock<Logger>(mockAuditLogRepository.Object);
             
-            _sandboxGuard = new SandboxGuard(_mockAclManager.Object, _mockLogger.Object);
+            _sandboxGuard = new SandboxGuard(_mockAccessControlRepository.Object, _mockLogger.Object);
         }
 
         [Fact]
@@ -54,16 +55,16 @@ namespace NexusFS.Tests
             var operation = FileOperation.Read;
 
             // Mock ACL to grant access
-            _mockAclManager
-                .Setup(m => m.HasAccessAsync(userId, It.IsAny<string>(), operation))
+            _mockAccessControlRepository
+                .Setup(m => m.HasAccessAsync(userId, It.IsAny<string>(), "read"))
                 .ReturnsAsync(true);
 
             // Act
             await _sandboxGuard.ValidateAccessAsync(userId, path, operation);
 
             // Assert - No exception thrown means success
-            _mockAclManager.Verify(
-                m => m.HasAccessAsync(userId, It.IsAny<string>(), operation),
+            _mockAccessControlRepository.Verify(
+                m => m.HasAccessAsync(userId, It.IsAny<string>(), "read"),
                 Times.Once
             );
         }
@@ -77,8 +78,8 @@ namespace NexusFS.Tests
             var operation = FileOperation.Write;
 
             // Mock ACL to deny access
-            _mockAclManager
-                .Setup(m => m.HasAccessAsync(userId, It.IsAny<string>(), operation))
+            _mockAccessControlRepository
+                .Setup(m => m.HasAccessAsync(userId, It.IsAny<string>(), "write"))
                 .ReturnsAsync(false);
 
             // Act & Assert
@@ -102,9 +103,9 @@ namespace NexusFS.Tests
             string? capturedPath = null;
 
             // Mock ACL to grant access and capture normalized path
-            _mockAclManager
-                .Setup(m => m.HasAccessAsync(userId, It.IsAny<string>(), operation))
-                .Callback<string, string, FileOperation>((user, normalizedPath, op) =>
+            _mockAccessControlRepository
+                .Setup(m => m.HasAccessAsync(userId, It.IsAny<string>(), "read"))
+                .Callback<string, string, string>((user, normalizedPath, op) =>
                 {
                     capturedPath = normalizedPath;
                 })

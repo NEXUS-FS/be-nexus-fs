@@ -8,7 +8,7 @@ namespace Infrastructure.Services.Security
     /// Manages user permissions and access control lists.
     /// Uses in-memory caching with persistent storage via repository.
     /// </summary>
-    public class ACLManager : IACLManager
+    public class ACLManager : IAccessControlRepository
     {
         private readonly IAccessControlRepository _repository;
         
@@ -189,36 +189,35 @@ namespace Infrastructure.Services.Security
         /// </summary>
         /// <param name="userId">The user identifier</param>
         /// <param name="path">The resource path being accessed</param>
-        /// <param name="operation">The file operation being performed</param>
+        /// <param name="operation">The operation name (e.g., "read", "write", "delete")</param>
         /// <returns>True if user has access, false otherwise</returns>
-        public async Task<bool> HasAccessAsync(string userId, string path, FileOperation operation)
+        public async Task<bool> HasAccessAsync(string userId, string path, string operation)
         {
             if (string.IsNullOrWhiteSpace(userId))
                 return false;
 
-            // Map FileOperation to permission string
-            var permission = MapOperationToPermission(operation);
-            
             // Check if user has the required permission
-            return await HasPermissionAsync(userId, permission);
+            return await HasPermissionAsync(userId, operation);
         }
 
-        /// <summary>
-        /// Maps a FileOperation to its corresponding permission string.
-        /// </summary>
-        private static string MapOperationToPermission(FileOperation operation)
+        public Task<bool> AddPermissionAsync(string username, string permission)
         {
-            return operation switch
-            {
-                FileOperation.Read => "read",
-                FileOperation.Write => "write",
-                FileOperation.Delete => "delete",
-                FileOperation.List => "list",
-                FileOperation.Create => "create",
-                FileOperation.Move => "move",
-                FileOperation.Copy => "copy",
-                _ => throw new ArgumentException($"Unknown operation: {operation}", nameof(operation))
-            };
+            return _repository.AddPermissionAsync(username, permission);
+        }
+
+        public Task<bool> RemovePermissionAsync(string username, string permission)
+        {
+            return _repository.RemovePermissionAsync(username, permission);
+        }
+
+        public Task<bool> RemoveAllPermissionsAsync(string username)
+        {
+            return _repository.RemoveAllPermissionsAsync(username);
+        }
+
+        public Task<Dictionary<string, List<string>>> GetAllPermissionsAsync()
+        {
+            return _repository.GetAllPermissionsAsync();
         }
 
         private static void Validate(string username, string permission)

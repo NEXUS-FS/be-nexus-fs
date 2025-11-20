@@ -1,4 +1,5 @@
 ﻿using Application.Common;
+using Domain.Repositories;
 using Infrastructure.Services.Observability;
 
 namespace Infrastructure.Services.Security
@@ -15,12 +16,12 @@ namespace Infrastructure.Services.Security
     /// </summary>
     public class SandboxGuard
     {
-        private readonly IACLManager _aclManager;
+        private readonly IAccessControlRepository _accessControlRepository;
         private readonly Logger _logger;
 
-        public SandboxGuard(IACLManager aclManager, Logger logger)
+        public SandboxGuard(IAccessControlRepository accessControlRepository, Logger logger)
         {
-            _aclManager = aclManager ?? throw new ArgumentNullException(nameof(aclManager));
+            _accessControlRepository = accessControlRepository ?? throw new ArgumentNullException(nameof(accessControlRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -73,8 +74,9 @@ namespace Infrastructure.Services.Security
 
                 _logger.LogDebug($"Normalized path: '{normalizedPath}'", "SandboxGuard");
 
-                // Validate ACL permissions
-                bool hasAccess = await _aclManager.HasAccessAsync(userId, normalizedPath, operation);
+                // Validate ACL permissions - map FileOperation enum to string
+                var operationString = MapOperationToString(operation);
+                bool hasAccess = await _accessControlRepository.HasAccessAsync(userId, normalizedPath, operationString);
 
                 if (!hasAccess)
                 {
@@ -94,6 +96,24 @@ namespace Infrastructure.Services.Security
                 _logger.LogError($"Unexpected error during access validation for user '{userId}': {ex.Message}", "SandboxGuard", ex);
                 throw new UnauthorizedAccessException("Access validation failed due to an internal error.", ex);
             }
+        }
+
+        /// <summary>
+        /// Maps a FileOperation enum to its corresponding string representation.
+        /// </summary>
+        private static string MapOperationToString(FileOperation operation)
+        {
+            return operation switch
+            {
+                FileOperation.Read => "read",
+                FileOperation.Write => "write",
+                FileOperation.Delete => "delete",
+                FileOperation.List => "list",
+                FileOperation.Create => "create",
+                FileOperation.Move => "move",
+                FileOperation.Copy => "copy",
+                _ => throw new ArgumentException($"Unknown operation: {operation}", nameof(operation))
+            };
         }
     }
 }
