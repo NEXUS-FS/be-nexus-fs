@@ -1,164 +1,145 @@
-﻿namespace Infrastructure.Services;
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-/// <summary>
-/// Local file system storage provider implementation.
-/// </summary>
-public class LocalProvider : Provider
+
+namespace Infrastructure.Services
 {
-    private string _basePath = string.Empty;
-
-    public LocalProvider(string providerId, string providerType, Dictionary<string, string> configuration)
-        : base(providerId, providerType, configuration)
+    public class LocalProvider : Provider
     {
-    }
+        private string _basePath = string.Empty;
 
-    // Convenience constructor for ProviderFactory
-    public LocalProvider(string providerId)
-        : base(providerId, "Local", new Dictionary<string, string>())
-    {
-    }
-
-    /// <summary>
-    /// Initializes the local provider with configuration.
-    /// </summary>
-    public override async Task Initialize(Dictionary<string, string> config)
-    {
-        await Task.CompletedTask;
-
-        Configuration = config ?? throw new ArgumentNullException(nameof(config));
-
-        if (config.TryGetValue("basePath", out var basePath))
+        public LocalProvider(string providerId, string providerType, Dictionary<string, string> configuration) 
+            : base(providerId, providerType, configuration)
         {
-            _basePath = basePath;
+        }
 
-            // Create directory if it doesn't exist
-            if (!Directory.Exists(_basePath))
+        public LocalProvider(string providerId) 
+            : base(providerId, "Local", new Dictionary<string, string>())
+        {
+        }
+
+        public override async Task Initialize(Dictionary<string, string> config)
+        {
+            Configuration = config ?? throw new ArgumentNullException(nameof(config));
+            
+            if (config.TryGetValue("basePath", out var basePath))
             {
-                Directory.CreateDirectory(_basePath);
+                _basePath = basePath;
+                if (!Directory.Exists(_basePath))
+                {
+                    Directory.CreateDirectory(_basePath);
+                }
+            }
+            else
+            {
+                throw new ArgumentException("basePath configuration is required for LocalProvider");
+            }
+            
+            await Task.CompletedTask;
+        }
+
+        public override async Task<string> ReadFileAsync(string filePath)
+        {
+            EnsureInitialized();
+
+          
+            var fullPath = GetSecurePath(filePath);
+
+            if (!File.Exists(fullPath))
+                throw new FileNotFoundException($"File not found: {filePath}");
+
+            return await File.ReadAllTextAsync(fullPath);
+        }
+
+        public override async Task WriteFileAsync(string filePath, string content)
+        {
+            EnsureInitialized();
+
+           
+            var fullPath = GetSecurePath(filePath);
+            
+            var directory = Path.GetDirectoryName(fullPath);
+
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            await File.WriteAllTextAsync(fullPath, content);
+        }
+
+        public override async Task DeleteFileAsync(string filePath)
+        {
+            EnsureInitialized();
+
+           
+            var fullPath = GetSecurePath(filePath);
+
+            if (File.Exists(fullPath))
+            {
+                await Task.Run(() => File.Delete(fullPath));
             }
         }
-        else
+
+        public override async Task<List<string>> ListFilesAsync(string directoryPath, bool recursive)
         {
-            throw new ArgumentException("basePath configuration is required for LocalProvider");
-        }
-        await Task.CompletedTask;
-    }
+            EnsureInitialized();
 
-    /// <summary>
-    /// Reads file content from local file system.
-    /// </summary>
-    public override async Task<string> ReadFileAsync(string filePath)
-    {
-        EnsureInitialized();
-        var fullPath = GetSecurePath(filePath);
+          
+            var targetRelative = directoryPath ?? string.Empty;
+            var fullSearchPath = GetSecurePath(targetRelative);
 
-        if (!File.Exists(fullPath))
-            throw new FileNotFoundException($"File not found: {filePath}");
+            if (!Directory.Exists(fullSearchPath))
+                return new List<string>();
 
-        return await File.ReadAllTextAsync(fullPath);
-    }
+            var searchOption = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
 
-    /// <summary>
-    /// Writes content to a file in local file system.
-    /// </summary>
-    public override async Task WriteFileAsync(string filePath, string content)
-    {
-        EnsureInitialized();
-        var fullPath = GetSecurePath(filePath);
-        var directory = Path.GetDirectoryName(fullPath);
-
-        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-        {
-            Directory.CreateDirectory(directory);
+            return await Task.Run(() => 
+            {
+                return Directory.GetFiles(fullSearchPath, "*", searchOption)
+                    .Select(f => Path.GetRelativePath(_basePath, f))
+                    .Select(p => p.Replace("\\", "/")) 
+                    .ToList();
+            });
         }
 
-        await File.WriteAllTextAsync(fullPath, content);
-    }
-
-    /// <summary>
-    /// Deletes a file from local file system.
-    /// </summary>
-    public override async Task DeleteFileAsync(string filePath)
-    {
-        EnsureInitialized();
-        var fullPath = GetSecurePath(filePath);
-
-        if (File.Exists(fullPath))
+        public override async Task<bool> TestConnectionAsync()
         {
-
-            await Task.Run(() => File.Delete(fullPath));
-        }
-    }
-
-
-
-    public override async Task<List<string>> ListFilesAsync(string directoryPath, bool recursive)
-    {
-        EnsureInitialized();
-
-        var targetRelative = directoryPath ?? string.Empty;
-        var fullSearchPath = GetSecurePath(targetRelative);
-
-        if (!Directory.Exists(fullSearchPath))
-            return new List<string>();
-
-        var searchOption = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
-
-
-        return await Task.Run(() =>
-        {
-            return Directory.GetFiles(fullSearchPath, "*", searchOption)
-                .Select(f => Path.GetRelativePath(_basePath, f))
-                .Select(p => p.Replace("\\", "/"))
-                .ToList();
-        });
-    }
-
-    /// <summary>
-    /// Tests connection to local file system.
-    /// </summary>
-    public override async Task<bool> TestConnectionAsync()
-    {
-        await Task.CompletedTask;
-        if (string.IsNullOrWhiteSpace(_basePath)) return false;
-
-        try
-        {
-            // verify we can actually read the directory info
+            await Task.CompletedTask;
+            if (string.IsNullOrWhiteSpace(_basePath)) return false;
             return Directory.Exists(_basePath);
         }
-        catch
+
+      
+
+        private void EnsureInitialized()
         {
-            return false;
-        }
-    }
-    //some helpers methods
-
-
-    private void EnsureInitialized()
-    {
-        if (string.IsNullOrWhiteSpace(_basePath))
-            throw new InvalidOperationException("Provider not initialized. Call Initialize() first.");
-    }
-    /// <summary>
-    /// Combines paths and checks for directory traversal attacks.
-    /// </summary>
-    private string GetSecurePath(string path)
-    {
-        var combined = Path.GetFullPath(Path.Combine(_basePath, path));
-        var baseFull = Path.GetFullPath(_basePath);
-
-        if (!combined.StartsWith(baseFull, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new UnauthorizedAccessException("Access to paths outside the base directory is denied.");
+            if (string.IsNullOrWhiteSpace(_basePath))
+                throw new InvalidOperationException("Provider not initialized. Call Initialize() first.");
         }
 
-        return combined;
+        /// <summary>
+        /// Prevents Path Traversal Attacks (e.g. "../windows/system32")
+        /// </summary>
+        private string GetSecurePath(string path)
+        {
+            // 1. Resolve the absolute path of the base directory
+            var baseFull = Path.GetFullPath(_basePath);
+
+            // 2. Combine base + user input and Resolve that absolute path
+            // Note: We normalize slashes to ensure Path.Combine works consistently
+            var normalizedInput = path.Replace("/", Path.DirectorySeparatorChar.ToString());
+            var combined = Path.GetFullPath(Path.Combine(_basePath, normalizedInput));
+
+            // 3. check if the result is still inside the base directory
+            if (!combined.StartsWith(baseFull, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new UnauthorizedAccessException("Access to paths outside the base directory is denied.");
+            }
+
+            return combined;
+        }
     }
 }
-
