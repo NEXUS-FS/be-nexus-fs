@@ -61,7 +61,9 @@ namespace Infrastructure.Services.Security
             {
                 new Claim("userId", user.Id.ToString()),
                 new Claim("username", user.Username),
-                new Claim("role", user.Role)
+                new Claim("role", user.Role),
+                new Claim("email", user.Email),
+                new Claim("provider", user.Provider)
             };
 
             var token = new JwtSecurityToken(
