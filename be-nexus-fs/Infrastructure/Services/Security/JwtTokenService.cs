@@ -7,6 +7,10 @@ using Domain.Entities;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Application.Common.Security;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using Application.Common.Settings;
 
 namespace Infrastructure.Services.Security
 {
@@ -49,15 +53,69 @@ namespace Infrastructure.Services.Security
         }
 
         public string GenerateAccessToken(UserEntity user)
-            => throw new NotImplementedException();
+        {
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secretKey));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var claims = new List<Claim>
+            {
+                new Claim("userId", user.Id.ToString()),
+                new Claim("username", user.Username),
+                new Claim("role", user.Role)
+            };
+
+            var token = new JwtSecurityToken(
+                issuer: _issuer,
+                audience: _audience,
+                claims: claims,
+                expires: DateTime.UtcNow.AddMinutes(_accessTokenMinutes),
+                signingCredentials: creds
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
 
         public string GenerateRefreshToken()
-            => throw new NotImplementedException();
+        {
+            var randomNumber = new byte[32];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(randomNumber);
+
+            return Convert.ToBase64String(randomNumber);
+        }
 
         public bool ValidateToken(string token)
-            => throw new NotImplementedException();
+        {
+            var handler = new JwtSecurityTokenHandler();
+
+            try
+            {
+                handler.ValidateToken(token, _validationParameters, out _);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         public string? GetUserIdFromToken(string token)
-            => throw new NotImplementedException();
+        {
+            var handler = new JwtSecurityTokenHandler();
+
+            try
+            {
+                var principal = handler.ValidateToken(token, _validationParameters, out _);
+
+                var userIdClaim = principal.Claims
+                    .FirstOrDefault(c => c.Type == "userId");
+
+                return userIdClaim?.Value;
+            }
+            catch
+            {
+                return null;
+            }
+        }
     }
 }

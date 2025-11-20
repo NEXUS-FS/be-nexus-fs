@@ -5,6 +5,9 @@ using DotNetEnv;
 using Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Domain.Entities;
+using Application.Common.Settings;
+using Application.Common.Security;
+using Infrastructure.Services.Security;
 
 Env.Load();
 
@@ -33,6 +36,10 @@ builder.Services.AddCors(options =>
 builder.Services.AddTransient<DatabaseSeeder>();
 builder.Services.AddScoped<IPasswordHasher<UserEntity>, PasswordHasher<UserEntity>>();
 
+//JWT
+builder.Services.Configure<JwtSettings>(
+    builder.Configuration.GetSection("JwtSettings"));
+builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
 var app = builder.Build();
 
