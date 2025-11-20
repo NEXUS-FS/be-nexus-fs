@@ -1,58 +1,56 @@
-using Domain.Repositories;
-using Application.DTOs.Auth;
 using Application.UseCases.Users.Commands;
-using Application.DTOs.User;
+using Application.DTOs.Auth;
+using Domain.Repositories;
 
-namespace Application.UseCases.Users.CommandsHandler
+public class LoginUserHandler
 {
-    public class LoginUserHandler
+    private readonly IUserRepository _userRepository;
+
+    public LoginUserHandler(IUserRepository userRepository)
     {
-        private readonly IUserRepository _userRepository;
+        _userRepository = userRepository;
+    }
 
-        public LoginUserHandler(IUserRepository userRepository)
+    public async Task<LoginUserResponse> HandleAsync(LoginUserCommand command)
+    {
+        var loginDto = command.loginRequest;
+
+        var user = await _userRepository.ValidateCredentialsAsync(
+            loginDto.Username,
+            loginDto.Password
+        );
+
+        if (user == null)
+            throw new UnauthorizedAccessException("Invalid username or password.");
+
+        await _userRepository.UpdateLastLoginAsync(user.Id);
+
+        LoginUserResponse lg= new LoginUserResponse();
+        
+
+        var loginResponse =lg.loginResponse;
         {
-            _userRepository = userRepository;
-        }
+         var   AccessToken = "TODO-GENERATE-JWT-TOKEN";
+          var  RefreshToken = "TODO-GENERATE-REFRESH-TOKEN";
 
-        public async Task<LoginUserResponse> HandleAsync(LoginUserCommand command)
+           var User = new Application.DTOs.User.UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Role = user.Role,
+                CreatedAt = user.CreatedAt,
+                IsActive = user.IsActive
+            };
+            loginResponse.AccessToken = AccessToken;
+            loginResponse.RefreshToken = RefreshToken;
+            loginResponse.User = User;
+
+        };
+
+        return new LoginUserResponse
         {
-            var request = command.LogRequest;
-
-            // Validate credentials (where BCrypt or hashing logic is used)
-            var user = await _userRepository.ValidateCredentialsAsync(request.Username, request.Password);
-
-            if (user == null)
-                throw new UnauthorizedAccessException("Invalid username or password.");
-
-            // update last login timestamp
-            await _userRepository.UpdateLastLoginAsync(user.Id);
-
-            // //TODO THIS
-            var accessToken = "TODO-GENERATE-JWT-TOKEN";
-            var refreshToken = "TODO-GENERATE-REFRESH-TOKEN";
-
-            var expiresAt = DateTime.UtcNow.AddHours(24);
-
-            // build the response DTO
-            var response = new LoginResponse
-            {
-                AccessToken = accessToken,
-                RefreshToken = refreshToken,
-                ExpiresAt = expiresAt,
-                User = new UserDto
-                {
-                    Id = user.Id,
-                    Username = user.Username,
-                    Email = user.Email,
-                    Role = user.Role
-                }
-            };
-
-            return new LoginUserResponse
-            {
-                ExpiresAt = expiresAt,
-                LogResopnse = response
-            };
-        }
+            loginResponse = loginResponse
+        };
     }
 }

@@ -4,6 +4,7 @@ using Infrastructure.Services;
 using Infrastructure.Services.Observability;
 using Infrastructure.Services.Security;
 using Infrastructure.Services.UI;
+using Infrastructure.Services.FileOperations;
 using Domain.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -43,6 +44,7 @@ public static class DependencyInjection
         // Core Services
         services.AddScoped<ProviderManager>();
         services.AddScoped<ProviderRouter>();
+        services.AddScoped<IFileOperationRepository, FileOperationRepository>();
 
         // Observability (Scoped)
         services.AddScoped<Logger>();
