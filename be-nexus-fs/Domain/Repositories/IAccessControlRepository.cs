@@ -35,5 +35,14 @@
         /// Returns dictionary where key is username, value is list of permissions.
         /// </summary>
         Task<Dictionary<string, List<string>>> GetAllPermissionsAsync();
+
+        /// <summary>
+        /// Checks if a user has access to perform a specific operation on a resource path.
+        /// </summary>
+        /// <param name="userId">The user identifier</param>
+        /// <param name="path">The resource path being accessed</param>
+        /// <param name="operation">The operation name (e.g., "read", "write", "delete")</param>
+        /// <returns>True if user has access, false otherwise</returns>
+        Task<bool> HasAccessAsync(string userId, string path, string operation);
     }
 }
