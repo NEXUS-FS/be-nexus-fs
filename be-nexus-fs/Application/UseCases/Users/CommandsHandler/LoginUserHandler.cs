@@ -1,14 +1,17 @@
 using Application.UseCases.Users.Commands;
 using Application.DTOs.Auth;
 using Domain.Repositories;
+using Application.Common.Security;
 
 public class LoginUserHandler
 {
     private readonly IUserRepository _userRepository;
+    private readonly IJwtTokenService _jwtTokenService;
 
-    public LoginUserHandler(IUserRepository userRepository)
+    public LoginUserHandler(IUserRepository userRepository, IJwtTokenService jwtTokenService)
     {
         _userRepository = userRepository;
+        _jwtTokenService = jwtTokenService;
     }
 
     public async Task<LoginUserResponse> HandleAsync(LoginUserCommand command)
@@ -30,10 +33,10 @@ public class LoginUserHandler
 
         var loginResponse =lg.loginResponse;
         {
-         var   AccessToken = "TODO-GENERATE-JWT-TOKEN";
-          var  RefreshToken = "TODO-GENERATE-REFRESH-TOKEN";
+            var AccessToken = _jwtTokenService.GenerateAccessToken(user);
+            var RefreshToken = _jwtTokenService.GenerateRefreshToken();
 
-           var User = new Application.DTOs.User.UserDto
+            var User = new Application.DTOs.User.UserDto
             {
                 Id = user.Id,
                 Username = user.Username,
