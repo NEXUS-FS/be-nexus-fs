@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using Application.Common;
 using Domain.Repositories;
 
 namespace Infrastructure.Services.Security
@@ -7,7 +8,7 @@ namespace Infrastructure.Services.Security
     /// Manages user permissions and access control lists.
     /// Uses in-memory caching with persistent storage via repository.
     /// </summary>
-    public class ACLManager
+    public class ACLManager : IAccessControlRepository
     {
         private readonly IAccessControlRepository _repository;
         
@@ -180,6 +181,43 @@ namespace Infrastructure.Services.Security
         {
             _userPermissions.Clear();
             await InitializePermissionsAsync();
+        }
+
+        /// <summary>
+        /// Checks if a user has access to perform a specific operation on a resource path.
+        /// Maps FileOperation to permission strings and delegates to HasPermissionAsync.
+        /// </summary>
+        /// <param name="userId">The user identifier</param>
+        /// <param name="path">The resource path being accessed</param>
+        /// <param name="operation">The operation name (e.g., "read", "write", "delete")</param>
+        /// <returns>True if user has access, false otherwise</returns>
+        public async Task<bool> HasAccessAsync(string userId, string path, string operation)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                return false;
+
+            // Check if user has the required permission
+            return await HasPermissionAsync(userId, operation);
+        }
+
+        public Task<bool> AddPermissionAsync(string username, string permission)
+        {
+            return _repository.AddPermissionAsync(username, permission);
+        }
+
+        public Task<bool> RemovePermissionAsync(string username, string permission)
+        {
+            return _repository.RemovePermissionAsync(username, permission);
+        }
+
+        public Task<bool> RemoveAllPermissionsAsync(string username)
+        {
+            return _repository.RemoveAllPermissionsAsync(username);
+        }
+
+        public Task<Dictionary<string, List<string>>> GetAllPermissionsAsync()
+        {
+            return _repository.GetAllPermissionsAsync();
         }
 
         private static void Validate(string username, string permission)

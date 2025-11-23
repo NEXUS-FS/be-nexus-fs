@@ -104,5 +104,14 @@ namespace Infrastructure.Repositories
                     g => g.Select(p => p.Permission).ToList()
                 );
         }
+
+        public async Task<bool> HasAccessAsync(string userId, string path, string operation)
+        {
+            if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(operation))
+                return false;
+
+            // Check if user has the required permission
+            return await HasPermissionAsync(userId, operation);
+        }
     }
 }
