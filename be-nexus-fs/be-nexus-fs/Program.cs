@@ -8,6 +8,9 @@ using Domain.Entities;
 using Application.Common.Settings;
 using Application.Common.Security;
 using Infrastructure.Services.Security;
+using Microsoft.AspNetCore.Authentication.JwtBearer; 
+using Microsoft.IdentityModel.Tokens; 
+using System.Text; 
 
 Env.Load();
 
@@ -31,15 +34,49 @@ builder.Services.AddCors(options =>
     });
 });
 
-
-//we need those to register and waiting on Rares Password hasher instead of the .NET one for now..
 builder.Services.AddTransient<DatabaseSeeder>();
 builder.Services.AddScoped<IPasswordHasher<UserEntity>, PasswordHasher<UserEntity>>();
 
-//JWT
 builder.Services.Configure<JwtSettings>(
     builder.Configuration.GetSection("JwtSettings"));
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+
+var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
+
+if (jwtSettings == null || string.IsNullOrEmpty(jwtSettings.SecretKey))
+{
+    throw new InvalidOperationException("JWT Settings are not configured properly.");
+}
+
+var key = Encoding.UTF8.GetBytes(jwtSettings.SecretKey);
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.SaveToken = true;
+    options.RequireHttpsMetadata = false; 
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidIssuer = jwtSettings.Issuer,
+        
+        ValidateAudience = true,
+        ValidAudience = jwtSettings.Audience,
+        
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.Zero, 
+        
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(key)
+    };
+});
+
+builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
@@ -47,11 +84,10 @@ using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var seeder = services.GetRequiredService<DatabaseSeeder>();
-
     await seeder.SeedAsync();
-
 }
-Console.WriteLine("Admin username (config): " + builder.Configuration["Seed:Admin:Username"]); //now this is in .env and in railway setup
+
+Console.WriteLine("Admin username (config): " + builder.Configuration["Seed:Admin:Username"]);
 
 app.MapOpenApi();
 
@@ -63,10 +99,12 @@ app.MapScalarApiReference(options =>
         .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
 });
 
-
 app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
-app.UseAuthorization();
+
+app.UseAuthentication(); 
+app.UseAuthorization(); 
+
 app.MapControllers();
 
 app.MapGet("/weatherforecast", () =>
