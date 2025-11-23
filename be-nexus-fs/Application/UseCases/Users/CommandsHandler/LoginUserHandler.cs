@@ -1,17 +1,20 @@
 using Application.UseCases.Users.Commands;
 using Application.DTOs.Auth;
 using Domain.Repositories;
+using Application.Common.Security;
 
 public class LoginUserHandler
 {
     private readonly IUserRepository _userRepository;
+    private readonly IJwtTokenService _jwtTokenService;
 
-    public LoginUserHandler(IUserRepository userRepository)
+    public LoginUserHandler(IUserRepository userRepository, IJwtTokenService jwtTokenService)
     {
         _userRepository = userRepository;
+        _jwtTokenService = jwtTokenService;
     }
 
-    public async Task<LoginUserResponse> HandleAsync(LoginUserCommand command)
+    public async Task<LoginResponse> HandleAsync(LoginUserCommand command)
     {
         var loginDto = command.loginRequest;
 
@@ -25,15 +28,15 @@ public class LoginUserHandler
 
         await _userRepository.UpdateLastLoginAsync(user.Id);
 
-        LoginUserResponse lg= new LoginUserResponse();
-        
+        var accessToken = _jwtTokenService.GenerateAccessToken(user);
+        var refreshToken = _jwtTokenService.GenerateRefreshToken();
 
-        var loginResponse =lg.loginResponse;
+        return new LoginResponse
         {
-         var   AccessToken = "TODO-GENERATE-JWT-TOKEN";
-          var  RefreshToken = "TODO-GENERATE-REFRESH-TOKEN";
-
-           var User = new Application.DTOs.User.UserDto
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(60),
+            User = new Application.DTOs.User.UserDto
             {
                 Id = user.Id,
                 Username = user.Username,
@@ -41,16 +44,7 @@ public class LoginUserHandler
                 Role = user.Role,
                 CreatedAt = user.CreatedAt,
                 IsActive = user.IsActive
-            };
-            loginResponse.AccessToken = AccessToken;
-            loginResponse.RefreshToken = RefreshToken;
-            loginResponse.User = User;
-
-        };
-
-        return new LoginUserResponse
-        {
-            loginResponse = loginResponse
+            }
         };
     }
 }
