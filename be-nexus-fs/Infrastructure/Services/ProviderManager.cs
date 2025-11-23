@@ -1,12 +1,19 @@
-﻿using Infrastructure.Services.Observability;
-using System.Data.Common;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+using System.Threading.Tasks;
+using Domain.Entities;
+using Domain.Repositories;
+using Infrastructure.Services.Observability; 
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Infrastructure.Services
 /// <summary>
 /// Observer Pattern implementation.
 /// Manages provider registration, discovery, and notifies observers of changes.
 /// </summary>
-
+/// 
 {
     public class ProviderManager
     {
@@ -14,61 +21,139 @@ namespace Infrastructure.Services
         private readonly List<IProviderObserver> _observers;
         private readonly Logger _logger;
         private readonly ProviderFactory _providerFactory;
+        
+        //can this be done better? we want this as a service at startup
+        private readonly IServiceScopeFactory _scopeFactory;
 
-        public ProviderManager(ProviderFactory providerFactory, Logger logger)
+        public ProviderManager(
+            ProviderFactory providerFactory, 
+            Logger logger,
+            IServiceScopeFactory scopeFactory)
         {
             _providers = new Dictionary<string, Provider>();
             _observers = new List<IProviderObserver>();
-            _providerFactory = providerFactory;
-            _logger = logger;
+            _providerFactory = providerFactory ?? throw new ArgumentNullException(nameof(providerFactory));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         }
 
-        public void RegisterObserver(IProviderObserver observer)
+        /// <summary>
+        /// Connects to the DB, fetches active providers, and loads them into memory.
+        /// </summary>
+        public async Task LoadProvidersFromDatabaseAsync()
         {
-            // Will be implemented in Story 2
-            throw new NotImplementedException();
-        }
+            _logger.LogInformation("ProviderManager: Starting database sync...");
 
-        public void RemoveObserver(IProviderObserver observer)
-        {
-            // Will be implemented in Story 2
-            throw new NotImplementedException();
-        }
+            // Create a temporary scope to access the Database Repository
+            using (var scope = _scopeFactory.CreateScope())
+            {
+                var repository = scope.ServiceProvider.GetRequiredService<IProviderRepository>();
+                var entities = await repository.GetActiveProvidersAsync();
 
-        public async Task NotifyProvidersRegistered(string providerId, string providerType)
-        {
-            // Will be implemented in Story 2
-            throw new NotImplementedException();
-        }
+                foreach (var entity in entities)
+                {
+                    try
+                    {
+                      //check supported type
+                        if (!_providerFactory.IsProviderTypeSupported(entity.Type))
+                        {
+                            _logger.LogWarning($"Skipping unsupported provider: {entity.Name} ({entity.Type})");
+                            continue;
+                        }
 
-        public async Task NotifyProviderRemoved(string providerId)
-        {
-            // Will be implemented in Story 2
-            throw new NotImplementedException();
+                        // 2. parse configuration, this is a json string
+                        var config = !string.IsNullOrWhiteSpace(entity.Configuration)
+                            ? JsonSerializer.Deserialize<Dictionary<string, string>>(entity.Configuration) ?? new Dictionary<string, string>()
+                            : new Dictionary<string, string>();
+
+                        // create provider instance
+                        var provider = await _providerFactory.CreateProviderAsync(entity.Type, entity.Id, config);
+
+                        // 4. Add to Memory
+                        // We use RegisterProvider to ensure observers are notified if needed, 
+                        // or add directly to dictionary to avoid noise.
+                        if (!_providers.ContainsKey(provider.ProviderId))
+                        {
+                            _providers.Add(provider.ProviderId, provider);
+                            _logger.LogInformation($"Loaded from DB: {entity.Name}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"Failed to load provider '{entity.Name}': {ex.Message}");
+                    }
+                }
+            }
+            
+            _logger.LogInformation($"ProviderManager: Sync complete. Active providers: {_providers.Count}");
         }
 
         public async Task RegisterProvider(Provider provider)
         {
-            // Will be implemented in Story 2
-            throw new NotImplementedException();
-        }
+            if (provider == null) throw new ArgumentNullException(nameof(provider));
 
-        public async Task<Provider> GetProvider(string providerId)
-        {
-            // Will be implemented in Story 2
-            throw new NotImplementedException();
-        }
+           //in memory update
+            if (!_providers.ContainsKey(provider.ProviderId))
+            {
+                _providers.Add(provider.ProviderId, provider);
+                
+                // DB Persistence
+                // We create a scope again because RegisterProvider might be called 
+                // from a Singleton context or API request.
+                using (var scope = _scopeFactory.CreateScope())
+                {
+                    var repo = scope.ServiceProvider.GetRequiredService<IProviderRepository>();
+                    
+                    var entity = new ProviderEntity
+                    {
+                        Id = provider.ProviderId,
+                        Name = provider.ProviderId,
+                        Type = provider.ProviderType,
+                        IsActive = true,
+                        Configuration = JsonSerializer.Serialize(provider.Configuration)
+                    };
 
-        public async Task<IEnumerable<Provider>> GetAllProviders()
-        {
-            // Will be implemented in Story 2
-            throw new NotImplementedException();
+                    var existing = await repo.GetByIdAsync(provider.ProviderId);
+                    if (existing == null) await repo.AddAsync(entity);
+                    else await repo.UpdateAsync(entity);
+                }
+
+                _logger.LogInformation($"Provider registered: {provider.ProviderId}");
+                await NotifyProvidersRegistered(provider.ProviderId, provider.ProviderType);
+            }
         }
 
         public async Task RemoveProvider(string providerId)
         {
-            // Will be implemented in Story 2
-            throw new NotImplementedException();
+            if (_providers.Remove(providerId))
+            {
+                using (var scope = _scopeFactory.CreateScope())
+                {
+                    var repo = scope.ServiceProvider.GetRequiredService<IProviderRepository>();
+                    await repo.DeleteAsync(providerId);
+                }
+
+                _logger.LogInformation($"Provider removed: {providerId}");
+                await NotifyProviderRemoved(providerId);
+            }
         }
+
+       //getter
+        public async Task<Provider?> GetProvider(string providerId)
+        {
+            _providers.TryGetValue(providerId, out var provider);
+            return await Task.FromResult(provider);
+        }
+
+        public async Task<IEnumerable<Provider>> GetAllProviders()
+        {
+            return await Task.FromResult(_providers.Values.ToList());
+        }
+
+        // just for completness.. will be done better..
+        public void RegisterObserver(IProviderObserver observer) { if(observer!=null) _observers.Add(observer); }
+        public void RemoveObserver(IProviderObserver observer) { if(observer!=null) _observers.Remove(observer); }
+        public async Task NotifyProvidersRegistered(string pid, string ptype) { await Task.CompletedTask; }
+        public async Task NotifyProviderRemoved(string pid) { await Task.CompletedTask; }
     }
 }

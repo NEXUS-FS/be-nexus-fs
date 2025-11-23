@@ -26,6 +26,7 @@ public class NexusFSDbContext : DbContext
 
         // Automatically apply all IEntityTypeConfiguration from assembly
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+        modelBuilder.Entity<ProviderEntity>().HasQueryFilter(e => e.DeletedAt == null); //needed for soft delete
     }
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
