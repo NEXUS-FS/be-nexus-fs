@@ -168,7 +168,7 @@ public class ProviderManager
         return await Task.FromResult(_providers.Values.ToList());
     }
 
-    //Obserever pattern methods
+    //Observer pattern methods
 
 
     private async Task NotifyObservers(Func<IProviderObserver, Task> action)
