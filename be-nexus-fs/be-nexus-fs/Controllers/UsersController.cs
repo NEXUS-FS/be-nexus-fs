@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Application.DTOs.User;
 using Application.DTOs.Common;
+using Application.DTOs.Auth;
 using Application.UseCases.Users.CommandsHandler;
 using Application.UseCases.Users.Commands;
 using Application.UseCases.Users.Queries;
@@ -186,25 +187,25 @@ namespace be_nexus_fs.Controllers
         /// Authenticate a user.
         /// </summary>
         [HttpPost("login")]
-        [ProducesResponseType(typeof(LoginUserResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public async Task<ActionResult<LoginUserResponse>> Login([FromBody] LoginUserCommand command)
-        {
-            try
-            {
-                var result = await _loginUserHandler.HandleAsync(command);
-                return Ok(result);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return Unauthorized(ex.Message);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error during login");
-                return StatusCode(500, "An error occurred during authentication");
-            }
-        }
+		[ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+		[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+		public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginUserCommand command)
+		{
+    		try
+    		{
+        		var result = await _loginUserHandler.HandleAsync(command);
+        		return Ok(result);
+    		}
+    		catch (UnauthorizedAccessException ex)
+    		{
+        		return Unauthorized(ex.Message);
+    		}
+    		catch (Exception ex)
+    		{
+        		_logger.LogError(ex, "Error during login");
+        		return StatusCode(500, "An error occurred during authentication");
+    		}
+		}
 
         /// <summary>
         /// Get user by username.
