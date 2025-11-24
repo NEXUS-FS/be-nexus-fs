@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Domain.Entities;
+using Domain.Entities; // Contains FileShareEntity and PermissionEntity
 using Domain.Repositories;
 using Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -19,53 +19,82 @@ namespace Infrastructure.Repositories
         }
 
         // ==================================================================
-        // PART 1: FILE ACCESS (The "Google Drive" Logic)
-        // This validates access to specific files based on SharePermission
+        // PART 1: FILE ACCESS for sharing
         // ==================================================================
 
         public async Task<bool> HasAccessAsync(string userId, string path, string operation)
         {
-            if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(path)) return false;
+            if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(path))
+                return false;
 
-            // 1. Normalize Path (e.g. "C:\Data" -> "C:/Data")
+            // 1. Normalize Path
             var normalizedPath = path.Replace("\\", "/");
 
-            // 2. Find the share record for this specific file & user
+            // 2. Find the specific share record
             var share = await _context.FileShares
                 .FirstOrDefaultAsync(s => s.UserId == userId && s.ResourcePath == normalizedPath);
 
-            // 3. If no specific share exists, fallback to checking global admin permissions
+            // 3. If no share exists, fallback to checking if they are a global admin
             if (share == null)
-            {
-                // Optional: Check if they are a global admin (using the generic permission system)
-                // If you don't want admins to see everything by default, remove this line.
-                if (await HasPermissionAsync(userId, "admin")) return true;
-                
-                return false; 
+            { //admin or read?
+                if (await HasPermissionAsync(userId, "read")) return true;
+                return false;
             }
 
-            // 4. Map operation string to required Permission Enum
-            return operation.ToLowerInvariant() switch
+
+            var userPerm = share.Permission.ToLowerInvariant();
+            var op = operation.ToLowerInvariant();
+
+            return op switch
             {
-                // Viewers can Read/List
-                "read" or "list" => true, 
+                // READ: Anyone with a share can read
+                "read" or "list" =>
+            userPerm == SharePermission.Viewer ||
+            userPerm == SharePermission.Editor ||
+            userPerm == SharePermission.Owner,
 
-                // Editors can Write/Create/Move/Copy
-                "write" or "create" or "move" or "copy" => 
-                    share.Permission >= SharePermission.Editor,
 
-                // Owners can Delete/Share
-                "delete" or "share" => 
-                    share.Permission == SharePermission.Owner,
+                "write" or "create" or "move" or "copy" =>
+              userPerm == SharePermission.Editor ||
+              userPerm == SharePermission.Owner,
 
-                _ => false // Unknown ops denied
+                // ADMIN: Only Owner
+                "delete" or "share" =>
+              userPerm == SharePermission.Owner,
+
+                _ => false // Unknown operation denied
             };
         }
 
-        // ==================================================================
-        // PART 2: GENERIC PERMISSIONS (The "RBAC" Logic)
-        // This manages roles like "admin", "auditor", "backup_operator"
-        // ==================================================================
+        public async Task ShareFileAsync(string path, string userId, string permission)
+        {
+            var normalizedPath = path.Replace("\\", "/");
+            var permissionLower = permission.ToLowerInvariant();
+
+            var share = await _context.FileShares
+                .FirstOrDefaultAsync(s => s.ResourcePath == normalizedPath && s.UserId == userId);
+
+            if (share == null)
+            {
+                share = new FileShareEntity
+                {
+                    ResourcePath = normalizedPath,
+                    UserId = userId,
+                    Permission = permissionLower, // Stored as string
+                    SharedAt = DateTime.UtcNow,
+                    SharedByUserId = "system" //TODO: fix this to be the actual sharing user.
+                };
+                await _context.FileShares.AddAsync(share);
+            }
+            else
+            {
+                share.Permission = permissionLower;
+                share.SharedAt = DateTime.UtcNow;
+                _context.FileShares.Update(share);
+            }
+
+            await _context.SaveChangesAsync();
+        }
 
         public async Task<bool> AddPermissionAsync(string username, string permission)
         {
@@ -145,39 +174,6 @@ namespace Infrastructure.Repositories
                 .ToListAsync();
         }
 
-        public async Task ShareFileAsync(string path, string userId, SharePermission permission)
-{
-    // 1. Normalize path to match how we query it later
-    var normalizedPath = path.Replace("\\", "/");
-
-    // 2. Check if a share record already exists
-    var share = await _context.FileShares
-        .FirstOrDefaultAsync(s => s.ResourcePath == normalizedPath && s.UserId == userId);
-
-    if (share == null)
-    {
-        // Create new share
-        share = new FileShareEntity
-        {
-            ResourcePath = normalizedPath,
-            UserId = userId,
-            Permission = permission,
-            SharedAt = DateTime.UtcNow,
-            SharedByUserId = "system" // Or pass in the sharer's ID
-        };
-        await _context.FileShares.AddAsync(share);
-    }
-    else
-    {
-        // Update existing permission (e.g. upgrade Viewer -> Editor)
-        share.Permission = permission;
-        share.SharedAt = DateTime.UtcNow; // Optional: Update timestamp
-        _context.FileShares.Update(share);
-    }
-
-    await _context.SaveChangesAsync();
-}
-
         public async Task<Dictionary<string, List<string>>> GetAllPermissionsAsync()
         {
             return await _context.Permissions
@@ -188,6 +184,4 @@ namespace Infrastructure.Repositories
                 );
         }
     }
-
-    
 }

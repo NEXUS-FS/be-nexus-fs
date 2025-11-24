@@ -3,11 +3,12 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Domain.Entities
 {
-    public enum SharePermission
+    //we have 3 roles for file sharing which are strings.
+    public static class SharePermission
     {
-        Viewer = 1, // Can only Read
-        Editor = 2, // Can Read, Write, Modify content
-        Owner = 3   // Can Delete, Share, Change Permissions
+        public const string Viewer = "viewer";
+        public const string Editor = "editor";
+        public const string Owner = "owner";
     }
 
     public class FileShareEntity
@@ -16,14 +17,14 @@ namespace Domain.Entities
         public string Id { get; set; } = Guid.NewGuid().ToString();
 
         [Required]
-        public string ResourcePath { get; set; }= String.Empty; // the specific file or folder
+        public string ResourcePath { get; set; } = String.Empty; // the specific file or folder
 
         [Required]
         public string UserId { get; set; } = String.Empty; // the user receiving access
 
-        public SharePermission Permission { get; set; } // Viewer, Editor, etc.
+        public string Permission { get; set; } = SharePermission.Viewer; // default to viewer
 
-        public string SharedByUserId { get; set; }= String.Empty; // audit: Who granted this?
+        public string SharedByUserId { get; set; } = String.Empty; // audit: Who granted this?
         public DateTime SharedAt { get; set; } = DateTime.UtcNow;
     }
 }
