@@ -33,7 +33,11 @@ namespace NexusFS.Tests
             var mockScope = new Mock<IServiceScope>();
             mockScopeFactory.Setup(s => s.CreateScope()).Returns(mockScope.Object);
             
-            _providerManager = new ProviderManager(factory, _logger, mockScopeFactory.Object);
+
+            //lets put the logger as observer here
+            var observers = new List<IProviderObserver> { _logger };
+
+            _providerManager = new ProviderManager(factory, _logger, mockScopeFactory.Object, observers);
             var auth = new AuthManager(_logger);
             _router = new ProviderRouter(_providerManager, _logger, auth);
 
