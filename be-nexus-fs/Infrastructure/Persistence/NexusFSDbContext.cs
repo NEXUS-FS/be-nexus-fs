@@ -20,9 +20,37 @@ public class NexusFSDbContext : DbContext
     public DbSet<MetricEntity> Metrics { get; set; } = null!;
     public DbSet<PermissionEntity> Permissions { get; set; } = null!;
 
+//we need this for sandbox and sharing
+    public DbSet<SandboxPolicy> SandboxPolicies { get; set; }
+    public DbSet<FileShareEntity> FileShares { get; set; }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<FileShareEntity>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                
+                // CONSTRAINT: A user cannot have multiple permissions for the same file
+                // (e.g., You can't be both "Viewer" and "Editor" on "report.doc")
+                entity.HasIndex(e => new { e.ResourcePath, e.UserId })
+                      .IsUnique();
+            });
+
+            // --- 4. Sandbox Policy Configuration ---
+            modelBuilder.Entity<SandboxPolicy>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+
+                // CONSTRAINT: Only one policy per user
+                entity.HasIndex(e => e.UserId)
+                      .IsUnique();
+            });
+
+            modelBuilder.Entity<PermissionEntity>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+            });
 
         // Automatically apply all IEntityTypeConfiguration from assembly
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
@@ -50,10 +78,10 @@ public class NexusFSDbContext : DbContext
 
                 try
                 {
-                  
+
                     details = JsonSerializer.Serialize(entry.CurrentValues.ToObject());
                 }
-               catch (Exception ex)
+                catch (Exception ex)
                 {
                     // Log serialization error in Details
                     details = $"{{ \"SerializationError\": \"{ex.Message}\" }}";

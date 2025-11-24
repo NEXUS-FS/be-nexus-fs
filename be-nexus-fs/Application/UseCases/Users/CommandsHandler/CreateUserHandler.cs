@@ -9,6 +9,7 @@ namespace Application.UseCases.Users.CommandsHandler
     {
         private readonly IUserRepository _userRepository;
 
+
         public CreateUserHandler(IUserRepository userRepository)
         {
             _userRepository = userRepository;

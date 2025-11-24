@@ -2,16 +2,19 @@
 using Domain.Entities;
 using Domain.Repositories;
 using Infrastructure.Persistence;
+using Microsoft.AspNetCore.Identity;
 
 namespace Infrastructure.Repositories
 {
     public class UserRepository : IUserRepository
     {
         private readonly NexusFSDbContext _context;
+		private readonly IPasswordHasher<UserEntity> _passwordHasher;
 
-        public UserRepository(NexusFSDbContext context)
+        public UserRepository(NexusFSDbContext context, IPasswordHasher<UserEntity> passwordHasher)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
+			_passwordHasher = passwordHasher ?? throw new ArgumentNullException(nameof(passwordHasher)); 
         }
         
         #region Basic CRUD operations
@@ -54,27 +57,26 @@ namespace Infrastructure.Repositories
             if (string.IsNullOrWhiteSpace(user.Provider))
                 throw new ArgumentException("Provider is required", nameof(user.Provider));
 
-            // Check for duplicate username
+        
             var existingUsername = await _context.Users
                 .AnyAsync(u => u.Username == user.Username && u.DeletedAt == null);
             
             if (existingUsername)
                 throw new InvalidOperationException($"Username '{user.Username}' already exists");
 
-            // Check for duplicate email
+      
             var existingEmail = await _context.Users
                 .AnyAsync(u => u.Email == user.Email && u.DeletedAt == null);
             
             if (existingEmail)
                 throw new InvalidOperationException($"Email '{user.Email}' already exists");
 
-            // Hash password if provided (Basic Auth only)
+       
             if (user.Provider == "Basic" && !string.IsNullOrWhiteSpace(user.PasswordHash))
             {
-                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(user.PasswordHash);
+                user.PasswordHash = _passwordHasher.HashPassword(user, user.PasswordHash); 
             }
-
-            // Set metadata
+           
             user.Id = Guid.NewGuid().ToString();
             user.CreatedAt = DateTime.UtcNow;
             user.IsActive = true;
@@ -85,13 +87,17 @@ namespace Infrastructure.Repositories
             return user;
         }
 
+
         public async Task UpdateAsync(UserEntity user)
         {
             if (user == null) throw new ArgumentNullException(nameof(user));
             if (string.IsNullOrWhiteSpace(user.Id)) throw new ArgumentNullException("User ID is required for update", nameof(user.Id));
+            
             var existingUser = await _context.Users
                 .FirstOrDefaultAsync(u => u.Id == user.Id && u.DeletedAt == null);
+            
             if (existingUser == null) throw new KeyNotFoundException($"User with ID '{user.Id}' not found");
+            
             if (user.Username != existingUser.Username)
             {
                 var duplicateUsername = await _context.Users
@@ -101,7 +107,6 @@ namespace Infrastructure.Repositories
                     throw new InvalidOperationException($"Username '{user.Username}' already exists");
             }
 
-            // Check for duplicate email (excluding current user)
             if (user.Email != existingUser.Email)
             {
                 var duplicateEmail = await _context.Users
@@ -121,12 +126,13 @@ namespace Infrastructure.Repositories
             if (!string.IsNullOrWhiteSpace(user.PasswordHash) && 
                 user.PasswordHash != existingUser.PasswordHash)
             {
-                existingUser.PasswordHash = BCrypt.Net.BCrypt.HashPassword(user.PasswordHash);
+                existingUser.PasswordHash = _passwordHasher.HashPassword(existingUser, user.PasswordHash);
             }
 
             _context.Users.Update(existingUser);
             await _context.SaveChangesAsync();
         }
+
         public async Task DeleteAsync(string id)
         {
             if (string.IsNullOrWhiteSpace(id))
@@ -252,7 +258,7 @@ namespace Infrastructure.Repositories
                     u.IsActive &&
                     u.DeletedAt == null);
         }
-        public async Task<UserEntity?> ValidateCredentialsAsync(string username, string password)
+         public async Task<UserEntity?> ValidateCredentialsAsync(string username, string password)
         {
             if (string.IsNullOrWhiteSpace(username))
                 throw new ArgumentException("Username cannot be null or empty", nameof(username));
@@ -270,11 +276,11 @@ namespace Infrastructure.Repositories
             if (user == null || string.IsNullOrWhiteSpace(user.PasswordHash))
                 return null;
 
-            // Verify password using BCrypt
-            bool isValidPassword = BCrypt.Net.BCrypt.Verify(password, user.PasswordHash);
+            var result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password);
 
-            return isValidPassword ? user : null;
+            return result == PasswordVerificationResult.Success ? user : null;
         }
+
         #endregion
         
         #region Query Helpers

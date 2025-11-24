@@ -6,9 +6,11 @@ using Infrastructure.Services.Security;
 using Infrastructure.Services.UI;
 using Infrastructure.Services.FileOperations;
 using Domain.Repositories;
+using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Identity;
 
 namespace Infrastructure;
 
@@ -32,6 +34,7 @@ public static class DependencyInjection
                 npgsqlOptions.EnableRetryOnFailure()));
 
         // Repositories
+        services.AddScoped<IPasswordHasher<UserEntity>, PasswordHasher<UserEntity>>();
         services.AddScoped<IProviderRepository, ProviderRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IAccessControlRepository, AccessControlRepository>();

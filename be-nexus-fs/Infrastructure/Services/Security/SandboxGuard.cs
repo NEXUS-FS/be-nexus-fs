@@ -1,106 +1,118 @@
-﻿using Application.Common;
+﻿using System;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using Application.Common; 
+using Domain.Entities;
 using Domain.Repositories;
 using Infrastructure.Services.Observability;
 
 namespace Infrastructure.Services.Security
 {
-    /// <summary>
-    /// Proxy Pattern implementation.
-    /// Enforces sandbox restrictions and validates resource access.
-    /// 
-    /// AOP Join Points (placeholders):
-    /// - Logging: Log method entry, parameters, exit, results, exceptions
-    /// - Metrics: Measure execution time for methods
-    /// - ErrorHandling: Capture and log exceptions
-    /// - Security/Audit: Track access attempts and failures
-    /// </summary>
     public class SandboxGuard
     {
         private readonly IAccessControlRepository _accessControlRepository;
+        private readonly ISandboxPolicyRepository _policyRepository;
         private readonly Logger _logger;
 
-        public SandboxGuard(IAccessControlRepository accessControlRepository, Logger logger)
+        public SandboxGuard(
+            IAccessControlRepository accessControlRepository, 
+            ISandboxPolicyRepository policyRepository,
+            Logger logger)
         {
             _accessControlRepository = accessControlRepository ?? throw new ArgumentNullException(nameof(accessControlRepository));
+            _policyRepository = policyRepository ?? throw new ArgumentNullException(nameof(policyRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        /// <summary>
-        /// Validates access for a user to perform an operation on a path.
-        /// Normalizes path, checks for path traversal, validates ACL permissions.
-        /// </summary>
-        /// <param name="userId">The user identifier</param>
-        /// <param name="path">The file path to validate</param>
-        /// <param name="operation">The file operation to perform</param>
-        /// <exception cref="UnauthorizedAccessException">Thrown when access is denied</exception>
         public async Task ValidateAccessAsync(string userId, string path, FileOperation operation)
         {
             try
             {
-                _logger.LogInformation($"Validating access for user '{userId}' to path '{path}' for operation '{operation}'", "SandboxGuard");
+                _logger.LogInformation($"Validating: User '{userId}' -> '{operation}' -> '{path}'", "SandboxGuard");
 
-                // Validate inputs
-                if (string.IsNullOrWhiteSpace(userId))
+              
+                if (string.IsNullOrWhiteSpace(path)) throw new UnauthorizedAccessException("Path required.");
+                if (path.Contains("..")) 
                 {
-                    _logger.LogWarning("Validation failed: userId is null or empty", "SandboxGuard");
-                    throw new UnauthorizedAccessException("User ID cannot be null or empty.");
+                    _logger.LogWarning($"Path traversal detected: {path}", "SandboxGuard");
+                    throw new UnauthorizedAccessException("Path traversal detected.");
                 }
 
-                if (string.IsNullOrWhiteSpace(path))
-                {
-                    _logger.LogWarning($"Validation failed: path is null or empty for user '{userId}'", "SandboxGuard");
-                    throw new UnauthorizedAccessException("Path cannot be null or empty.");
-                }
+              
+                string normalizedPath = Path.GetFullPath(path).Replace("\\", "/");
 
-                // Check for path traversal attempts BEFORE normalization
-                if (path.Contains(".."))
-                {
-                    _logger.LogWarning($"Path traversal attempt detected for user '{userId}' on path '{path}'", "SandboxGuard");
-                    throw new UnauthorizedAccessException($"Path traversal is not allowed: {path}");
-                }
+                // 1. ENFORCE POLICY (Governance)
+                // This checks global rules before checking specific file permissions
+                
+                await EnforcePolicyAsync(userId, normalizedPath, operation);
 
-                // Normalize path
-                string normalizedPath;
-                try
-                {
-                    normalizedPath = Path.GetFullPath(path);
-                    normalizedPath = normalizedPath.Replace("\\", "/");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError($"Path normalization failed for path '{path}': {ex.Message}", "SandboxGuard", ex);
-                    throw new UnauthorizedAccessException($"Invalid path: {path}", ex);
-                }
-
-                _logger.LogDebug($"Normalized path: '{normalizedPath}'", "SandboxGuard");
-
-                // Validate ACL permissions - map FileOperation enum to string
+                // 2. ENFORCE ACL (Permissions)
+             
                 var operationString = MapOperationToString(operation);
                 bool hasAccess = await _accessControlRepository.HasAccessAsync(userId, normalizedPath, operationString);
 
                 if (!hasAccess)
                 {
-                    _logger.LogWarning($"Access denied for user '{userId}' to path '{normalizedPath}' for operation '{operation}'", "SandboxGuard");
-                    throw new UnauthorizedAccessException($"Access denied for user '{userId}' to perform '{operation}' on '{path}'.");
+                    _logger.LogWarning($"ACL Denied: {userId} cannot perform '{operation}' on '{normalizedPath}'", "SandboxGuard");
+                    throw new UnauthorizedAccessException("You do not have permission to access this resource.");
                 }
 
-                _logger.LogInformation($"Access granted for user '{userId}' to path '{normalizedPath}' for operation '{operation}'", "SandboxGuard");
+                _logger.LogInformation("Access Granted", "SandboxGuard");
             }
-            catch (UnauthorizedAccessException)
-            {
-                // Re-throw authorization exceptions without wrapping
-                throw;
-            }
+            catch (UnauthorizedAccessException) { throw; }
             catch (Exception ex)
             {
-                _logger.LogError($"Unexpected error during access validation for user '{userId}': {ex.Message}", "SandboxGuard", ex);
-                throw new UnauthorizedAccessException("Access validation failed due to an internal error.", ex);
+                _logger.LogError($"Guard Error: {ex.Message}", "SandboxGuard");
+                throw new UnauthorizedAccessException("Access denied due to system error.", ex);
             }
         }
 
         /// <summary>
-        /// Maps a FileOperation enum to its corresponding string representation.
+        /// Validates against the user's Sandbox Policy.
         /// </summary>
+        private async Task EnforcePolicyAsync(string userId, string path, FileOperation operation)
+        {
+            // Fetch policy, default to empty if none exists
+            var policy = await _policyRepository.GetPolicyForUserAsync(userId) ?? new SandboxPolicy();
+
+            // Rule 1: Read-Only Mode
+            // If policy says ReadOnly, and user tries to Write/Delete -> Block
+            if (policy.IsReadOnly && IsWriteOperation(operation))
+            {
+                _logger.LogWarning($"Policy Violation: User '{userId}' attempted write in Read-Only mode.", "SandboxGuard");
+                throw new UnauthorizedAccessException("Sandbox is in Read-Only mode.");
+            }
+
+            // Rule 2: Path Length
+            if (path.Length > policy.MaxPathLength)
+            {
+                throw new UnauthorizedAccessException($"Path exceeds maximum length of {policy.MaxPathLength}.");
+            }
+
+            // Rule 3: Hidden Files (Dot-files)
+            var fileName = Path.GetFileName(path);
+            if (!policy.AllowDotFiles && fileName.StartsWith("."))
+            {
+                _logger.LogWarning($"Policy Violation: Dot-file access denied '{fileName}'", "SandboxGuard");
+                throw new UnauthorizedAccessException("Access to hidden files is restricted.");
+            }
+
+            // Rule 4: Blocked Extensions (Only relevant for Write/Create)
+            if (IsWriteOperation(operation))
+            {
+                string ext = Path.GetExtension(path).ToLowerInvariant();
+                if (policy.BlockedFileExtensions.Contains(ext))
+                {
+                    _logger.LogWarning($"Policy Violation: Blocked extension '{ext}'", "SandboxGuard");
+                    throw new UnauthorizedAccessException($"File extension '{ext}' is not allowed.");
+                }
+            }
+        }
+
+        private bool IsWriteOperation(FileOperation op) 
+            => op is FileOperation.Write or FileOperation.Create or FileOperation.Delete or FileOperation.Move or FileOperation.Copy;
+
         private static string MapOperationToString(FileOperation operation)
         {
             return operation switch
@@ -112,7 +124,7 @@ namespace Infrastructure.Services.Security
                 FileOperation.Create => "create",
                 FileOperation.Move => "move",
                 FileOperation.Copy => "copy",
-                _ => throw new ArgumentException($"Unknown operation: {operation}", nameof(operation))
+                _ => throw new ArgumentException($"Unknown operation: {operation}")
             };
         }
     }
