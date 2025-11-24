@@ -89,27 +89,29 @@ namespace Infrastructure.Repositories
         /// <summary>
         /// Deletes a provider by its ID (soft delete recommended).
         /// </summary>
-        public async Task DeleteAsync(string id)
-        {
-            if (string.IsNullOrWhiteSpace(id))
-                throw new ArgumentException("Provider ID cannot be null or empty.", nameof(id));
+      public async Task DeleteAsync(string id)
+{
+    if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("ID required", nameof(id));
 
-            var provider = await _context.Providers
-                .FirstOrDefaultAsync(p => p.Id == id);
-
-            if (provider == null)
-                throw new KeyNotFoundException($"Provider with ID '{id}' not found.");
-
-            // Option 1: Hard delete
-            _context.Providers.Remove(provider);
-            
-            // Option 2: Soft delete (preferred) - uncomment if you want soft delete
-            // provider.IsActive = false;
-            // provider.DeletedAt = DateTime.UtcNow;
-            // _context.Providers.Update(provider);
-
-            await _context.SaveChangesAsync();
-        }
+    // NOTE: We must check if it exists. 
+    // If the QueryFilter is active, GetByIdAsync might return null if it was ALREADY deleted.
+    // To allow re-deleting (idempotency) or specific checks, fetch normally.
+    var provider = await _context.Providers.FirstOrDefaultAsync(p => p.Id == id);
+    
+    if (provider != null)
+    {
+        provider.IsActive = false;
+        provider.DeletedAt = DateTime.UtcNow;
+        
+        _context.Providers.Update(provider);
+        await _context.SaveChangesAsync();
+    }
+    else
+    {
+         // Optional: Throw exception if you want strict behavior
+         throw new KeyNotFoundException($"Provider {id} not found.");
+    }
+}
 
         /// <summary>
         /// Gets all active providers (IsActive = true).

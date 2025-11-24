@@ -85,6 +85,20 @@ using (var scope = app.Services.CreateScope())
     var services = scope.ServiceProvider;
     var seeder = services.GetRequiredService<DatabaseSeeder>();
     await seeder.SeedAsync();
+
+    try
+    {
+        //we can check if the database exists also here..?
+        var providerManager = services.GetRequiredService<Infrastructure.Services.ProviderManager>();
+        await providerManager.LoadProvidersFromDatabaseAsync();
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<Infrastructure.Services.Observability.Logger>();
+        logger.LogError("An error occurred while loading providers into memory.");
+        logger.LogError(ex.Message);
+    }
+
 }
 
 Console.WriteLine("Admin username (config): " + builder.Configuration["Seed:Admin:Username"]);

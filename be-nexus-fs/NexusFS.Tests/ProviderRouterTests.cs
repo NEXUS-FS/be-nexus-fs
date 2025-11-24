@@ -10,6 +10,7 @@ using Infrastructure.Services.Security;
 using Moq;
 using Domain.Repositories;
 using Xunit;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace NexusFS.Tests
 {
@@ -26,7 +27,13 @@ namespace NexusFS.Tests
             var auditRepo = new Mock<IAuditLogRepository>();
             _logger = new Logger(auditRepo.Object);
             var factory = new ProviderFactory();
-            _providerManager = new ProviderManager(factory, _logger);
+
+            //added this to can create the ProviderManager.
+            var mockScopeFactory = new Mock<Microsoft.Extensions.DependencyInjection.IServiceScopeFactory>();
+            var mockScope = new Mock<IServiceScope>();
+            mockScopeFactory.Setup(s => s.CreateScope()).Returns(mockScope.Object);
+            
+            _providerManager = new ProviderManager(factory, _logger, mockScopeFactory.Object);
             var auth = new AuthManager(_logger);
             _router = new ProviderRouter(_providerManager, _logger, auth);
 
@@ -97,7 +104,7 @@ namespace NexusFS.Tests
             };
 
             var result = await _router.ExecuteOperation("missing-provider", "invalid-operation", parameters);
-            
+
             result.Should().NotBeNull();
             result.Success.Should().BeFalse();
             result.Message.Should().Contain("Unsupported operation");
@@ -112,7 +119,7 @@ namespace NexusFS.Tests
             };
 
             var result = await _router.ExecuteOperation("missing-provider", null!, parameters);
-            
+
             result.Should().NotBeNull();
             result.Success.Should().BeFalse();
             result.Message.Should().Contain("Unsupported operation");
@@ -127,7 +134,7 @@ namespace NexusFS.Tests
             };
 
             var result = await _router.ExecuteOperation("missing-provider", "", parameters);
-            
+
             result.Should().NotBeNull();
             result.Success.Should().BeFalse();
             result.Message.Should().Contain("Unsupported operation");
@@ -136,7 +143,7 @@ namespace NexusFS.Tests
         #endregion
 
         #region ExecuteOperation - Missing Parameters Tests
-        
+
         // Note: These tests verify that missing parameters are detected
         // The implementation checks provider existence first, then validates parameters
         // So these tests verify the parameter validation happens after routing to provider
