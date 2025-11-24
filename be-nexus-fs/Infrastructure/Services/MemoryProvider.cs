@@ -112,6 +112,24 @@ namespace Infrastructure.Services
         }
 
         /// <summary>
+        /// Checks if a file exists in memory storage.
+        /// </summary>
+        public override async Task<bool> ExistsAsync(string filePath)
+        {
+            await Task.CompletedTask;
+            throw new NotImplementedException("ExistsAsync is not yet implemented for MemoryProvider");
+        }
+
+        /// <summary>
+        /// Gets file metadata/statistics from memory storage.
+        /// </summary>
+        public override async Task<Dictionary<string, object>> StatAsync(string filePath)
+        {
+            await Task.CompletedTask;
+            throw new NotImplementedException("StatAsync is not yet implemented for MemoryProvider");
+        }
+
+        /// <summary>
         /// Normalizes paths to use forward slashes for consistent dictionary keys.
         /// </summary>
         private string NormalizePath(string path)
