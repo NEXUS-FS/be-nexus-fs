@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Application.DTOs.User;
 using Application.DTOs.Common;
+using Application.DTOs.Auth;
 using Application.UseCases.Users.CommandsHandler;
 using Application.UseCases.Users.Commands;
 using Application.UseCases.Users.Queries;
@@ -186,9 +187,9 @@ namespace be_nexus_fs.Controllers
         /// Authenticate a user.
         /// </summary>
         [HttpPost("login")]
-		[ProducesResponseType(typeof(LoginUserResponse), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
 		[ProducesResponseType(StatusCodes.Status401Unauthorized)]
-		public async Task<ActionResult<LoginUserResponse>> Login([FromBody] LoginUserCommand command)
+		public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginUserCommand command)
 		{
     		try
     		{

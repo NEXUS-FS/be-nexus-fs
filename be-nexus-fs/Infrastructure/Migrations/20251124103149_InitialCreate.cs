@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -41,6 +42,22 @@ namespace Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AuditLogs", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "FileShares",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "text", nullable: false),
+                    ResourcePath = table.Column<string>(type: "text", nullable: false),
+                    UserId = table.Column<string>(type: "text", nullable: false),
+                    Permission = table.Column<string>(type: "text", nullable: false),
+                    SharedByUserId = table.Column<string>(type: "text", nullable: false),
+                    SharedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_FileShares", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -98,6 +115,22 @@ namespace Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "SandboxPolicies",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "text", nullable: false),
+                    UserId = table.Column<string>(type: "text", nullable: false),
+                    IsReadOnly = table.Column<bool>(type: "boolean", nullable: false),
+                    MaxPathLength = table.Column<int>(type: "integer", nullable: false),
+                    AllowDotFiles = table.Column<bool>(type: "boolean", nullable: false),
+                    BlockedFileExtensions = table.Column<List<string>>(type: "text[]", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SandboxPolicies", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Users",
                 columns: table => new
                 {
@@ -142,6 +175,12 @@ namespace Infrastructure.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_FileShares_ResourcePath_UserId",
+                table: "FileShares",
+                columns: new[] { "ResourcePath", "UserId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Metrics_MetricName_Timestamp",
                 table: "Metrics",
                 columns: new[] { "MetricName", "Timestamp" });
@@ -174,6 +213,12 @@ namespace Infrastructure.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_SandboxPolicies_UserId",
+                table: "SandboxPolicies",
+                column: "UserId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Users_Email",
                 table: "Users",
                 column: "Email",
@@ -201,6 +246,9 @@ namespace Infrastructure.Migrations
                 name: "AuditLogs");
 
             migrationBuilder.DropTable(
+                name: "FileShares");
+
+            migrationBuilder.DropTable(
                 name: "Metrics");
 
             migrationBuilder.DropTable(
@@ -208,6 +256,9 @@ namespace Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "Providers");
+
+            migrationBuilder.DropTable(
+                name: "SandboxPolicies");
 
             migrationBuilder.DropTable(
                 name: "Users");

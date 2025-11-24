@@ -26,16 +26,16 @@ public class LoginUserHandler
         if (user == null)
             throw new UnauthorizedAccessException("Invalid username or password.");
 
-        await _userRepository.UpdateLastLoginAsync(user.Id);
-
         var accessToken = _jwtTokenService.GenerateAccessToken(user);
         var refreshToken = _jwtTokenService.GenerateRefreshToken();
+
+        await _userRepository.UpdateLastLoginAsync(user.Id);
 
         return new LoginResponse
         {
             AccessToken = accessToken,
             RefreshToken = refreshToken,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(60),
+            ExpiresAt = DateTime.UtcNow.AddMinutes(60), 
             User = new Application.DTOs.User.UserDto
             {
                 Id = user.Id,
