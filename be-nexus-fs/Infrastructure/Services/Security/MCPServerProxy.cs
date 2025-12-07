@@ -159,6 +159,10 @@ public class MCPServerProxy
     /// <returns>Collection of audit log entries</returns>
     public async Task<IEnumerable<AuditLogEntity>> GetAuditTrailByDateRangeAsync(DateTime from, DateTime to)
     {
+        if (from > to)
+        {
+            throw new ArgumentException("'from' date must be before or equal to 'to' date.");
+        }
         return await _auditLogRepository.GetByDateRangeAsync(from, to);
     }
 }
