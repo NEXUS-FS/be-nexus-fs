@@ -13,6 +13,7 @@ public class FtpProvider : Provider, IAsyncDisposable
     private string _password = string.Empty;
     private int _port = 21;
     private bool _skipCertificateValidation;
+    private FtpEncryptionMode _encryptionMode = FtpEncryptionMode.Auto;
     private AsyncFtpClient? _client;
     private readonly SemaphoreSlim _clientLock = new SemaphoreSlim(1, 1);
     private readonly Logger? _logger;
@@ -75,6 +76,23 @@ public class FtpProvider : Provider, IAsyncDisposable
             _skipCertificateValidation = skipCert;
         }
 
+        // Encryption mode configuration
+        // Options: None (plain FTP), Explicit (FTPS with explicit TLS), Implicit (FTPS with implicit TLS), Auto (try encryption if available)
+        // Default: Auto (secure, attempts encryption but falls back to plain FTP if not supported)
+        if (config.TryGetValue("encryptionMode", out var encryptionModeStr))
+        {
+            _encryptionMode = encryptionModeStr.ToLowerInvariant() switch
+            {
+                "none" => FtpEncryptionMode.None,
+                "explicit" => FtpEncryptionMode.Explicit,
+                "implicit" => FtpEncryptionMode.Implicit,
+                "auto" => FtpEncryptionMode.Auto,
+                _ => throw new ArgumentException(
+                    $"Invalid encryptionMode value: '{encryptionModeStr}'. Valid values are: None, Explicit, Implicit, Auto",
+                    nameof(config))
+            };
+        }
+
         // Create and cache the FTP client
         await EnsureClientAsync();
     }
@@ -85,11 +103,12 @@ public class FtpProvider : Provider, IAsyncDisposable
     /// <remarks>
     /// SECURITY: Certificate validation is controlled by the skipCertificateValidation configuration.
     /// By default, certificates are validated. Only disable validation in development/testing environments.
+    /// Encryption mode is configurable via the encryptionMode setting, defaulting to Auto for secure connections.
     /// </remarks>
     private AsyncFtpClient CreateAsyncFtpClient()
     {
         var client = new AsyncFtpClient(_host, _username, _password, _port);
-        client.Config.EncryptionMode = FtpEncryptionMode.None;
+        client.Config.EncryptionMode = _encryptionMode;
         client.Config.DataConnectionType = FtpDataConnectionType.AutoPassive;
         
         // Certificate validation: false = validate certificates (secure, default)

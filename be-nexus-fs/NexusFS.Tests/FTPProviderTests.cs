@@ -82,6 +82,7 @@ public class FtpProviderTests : IAsyncLifetime
             { "username", "anonymous" },
             { "password", "anonymous@example.com" },
             { "port", _ftpPort.ToString() },
+            { "encryptionMode", "None" }, // Test server uses plain FTP
             { "skipCertificateValidation", "true" } // Test server uses plain FTP, but set for clarity and future FTPS testing
         };
         await _provider.Initialize(settings);
