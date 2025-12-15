@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using Infrastructure.Services.Observability;
+﻿using Infrastructure.Services.Observability;
 
 namespace Infrastructure.Services.Security
 {
