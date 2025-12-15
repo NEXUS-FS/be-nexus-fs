@@ -1,4 +1,5 @@
 ﻿using FluentFTP;
+using Infrastructure.Services.Observability;
 
 namespace Infrastructure.Services;
 
@@ -11,19 +12,33 @@ public class FtpProvider : Provider, IAsyncDisposable
     private string _username = string.Empty;
     private string _password = string.Empty;
     private int _port = 21;
-    private bool _skipCertificateValidation = false;
+    private bool _skipCertificateValidation;
     private AsyncFtpClient? _client;
     private readonly SemaphoreSlim _clientLock = new SemaphoreSlim(1, 1);
+    private readonly Logger? _logger;
 
     public FtpProvider(string providerId, string providerType, Dictionary<string, string> configuration) 
-        : base(providerId, providerType, configuration)
+        : this(providerId, providerType, configuration, null)
     {
     }
 
     // Convenience constructor for ProviderFactory
     public FtpProvider(string providerId) 
-        : base(providerId, "FTP", new Dictionary<string, string>())
+        : this(providerId, null)
     {
+    }
+
+    // Internal/testing-friendly constructor with logger injection
+    public FtpProvider(string providerId, Logger? logger = null)
+        : this(providerId, "FTP", new Dictionary<string, string>(), logger)
+    {
+    }
+
+    // Full constructor with logger support
+    public FtpProvider(string providerId, string providerType, Dictionary<string, string> configuration, Logger? logger) 
+        : base(providerId, providerType, configuration)
+    {
+        _logger = logger;
     }
 
     /// <summary>
@@ -104,8 +119,10 @@ public class FtpProvider : Provider, IAsyncDisposable
                 catch (Exception ex)
                 {
                     // Log the connection failure for debugging
-                    Console.WriteLine($"[FtpProvider] Connection attempt failed for provider {ProviderId} (Host: {_host}:{_port}). " +
-                                    $"Exception: {ex.GetType().Name} - {ex.Message}");
+                    _logger?.LogError(
+                        $"Connection attempt failed for provider {ProviderId} (Host: {_host}:{_port})",
+                        nameof(FtpProvider),
+                        ex);
                     
                     // If reconnect fails, dispose and create a new client
                     try
@@ -114,7 +131,10 @@ public class FtpProvider : Provider, IAsyncDisposable
                     }
                     catch (Exception disposeEx)
                     {
-                        Console.WriteLine($"[FtpProvider] Error disposing client for provider {ProviderId}: {disposeEx.Message}");
+                        _logger?.LogError(
+                            $"Error disposing client for provider {ProviderId}",
+                            nameof(FtpProvider),
+                            disposeEx);
                     }
                     
                     _client = CreateAsyncFtpClient();
@@ -208,8 +228,10 @@ public class FtpProvider : Provider, IAsyncDisposable
         catch (Exception ex)
         {
             // Log connection test failure for debugging
-            Console.WriteLine($"[FtpProvider] Connection test failed for provider {ProviderId} (Host: {_host}:{_port}). " +
-                            $"Exception: {ex.GetType().Name} - {ex.Message}");
+            _logger?.LogError(
+                $"Connection test failed for provider {ProviderId} (Host: {_host}:{_port})",
+                nameof(FtpProvider),
+                ex);
             return false;
         }
     }
