@@ -100,7 +100,7 @@ namespace Infrastructure.Services
             _logger.LogInformation($"ProviderManager: Sync complete. Active providers: {_providers.Count}");
         }
 
-        public Task RegisterProvider(Provider provider)
+        public async Task RegisterProvider(Provider provider)
         {
             if (provider == null) throw new ArgumentNullException(nameof(provider));
 
@@ -135,7 +135,7 @@ namespace Infrastructure.Services
             }
         }
 
-        public Task RemoveProvider(string providerId)
+        public async Task RemoveProvider(string providerId)
         {
             if (_providers.Remove(providerId))
             {

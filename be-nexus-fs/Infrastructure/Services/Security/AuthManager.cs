@@ -1,4 +1,7 @@
-﻿using Infrastructure.Services.Observability;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using Infrastructure.Services.Observability;
 
 namespace Infrastructure.Services.Security
 {
@@ -238,7 +241,7 @@ namespace Infrastructure.Services.Security
         // [AOP: LoggingAspect] AFTER: Log authentication result
         // [AOP: MetricsAspect] AROUND: Count authentication attempts and measure time
         // [AOP: ErrorHandlingAspect] AFTER_THROWING: Capture and log exceptions
-        public Task<bool> AuthenticateAsync(Dictionary<string, string> credentials)
+        public async Task<bool> AuthenticateAsync(Dictionary<string, string> credentials)
         {
             try
             {
@@ -300,7 +303,7 @@ namespace Infrastructure.Services.Security
         // [AOP: LoggingAspect] AFTER: Log validation result
         // [AOP: MetricsAspect] AROUND: Count validation attempts
         // [AOP: ErrorHandlingAspect] AFTER_THROWING: Capture and log exceptions
-        public Task<bool> ValidateTokenAsync(string token)
+        public async Task<bool> ValidateTokenAsync(string token)
         {
             try
             {
@@ -333,7 +336,7 @@ namespace Infrastructure.Services.Security
         // [AOP: LoggingAspect] AFTER: Log token generation success
         // [AOP: MetricsAspect] AROUND: Count token generations
         // [AOP: ErrorHandlingAspect] AFTER_THROWING: Capture and log exceptions
-        public Task<string> GenerateTokenAsync(Dictionary<string, string> credentials)
+        public async Task<string> GenerateTokenAsync(Dictionary<string, string> credentials)
         {
             try
             {

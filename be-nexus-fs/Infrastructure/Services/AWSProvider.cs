@@ -13,8 +13,8 @@ namespace Infrastructure.Services
 {
     public class S3Provider : Provider
     {
-        private IAmazonS3 _s3Client;
-        private string _bucketName;
+        private IAmazonS3? _s3Client = null;
+        private string? _bucketName = null;
 
         public S3Provider(string providerId, string providerType, Dictionary<string, string> configuration) 
             : base(providerId, providerType, configuration)
@@ -64,17 +64,17 @@ namespace Infrastructure.Services
             {
                 var request = new GetObjectRequest
                 {
-                    BucketName = _bucketName,
+                    BucketName = _bucketName!,
                     Key = NormalizePath(filePath)
                 };
 
-                using var response = await _s3Client.GetObjectAsync(request);
+                using var response = await _s3Client!.GetObjectAsync(request);
                 using var reader = new StreamReader(response.ResponseStream);
                 return await reader.ReadToEndAsync();
             }
             catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound || ex.ErrorCode == "NoSuchKey")
             {
-                throw new FileNotFoundException($"File not found in S3 bucket '{_bucketName}': {filePath}", ex);
+                throw new FileNotFoundException($"File not found in S3 bucket '{_bucketName!}': {filePath}", ex);
             }
             catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
             {
@@ -90,16 +90,16 @@ namespace Infrastructure.Services
             {
                 var request = new PutObjectRequest
                 {
-                    BucketName = _bucketName,
+                    BucketName = _bucketName!,
                     Key = NormalizePath(filePath),
                     ContentBody = content
                 };
 
-                await _s3Client.PutObjectAsync(request);
+                await _s3Client!.PutObjectAsync(request);
             }
             catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
             {
-                throw new UnauthorizedAccessException($"Access denied writing to bucket '{_bucketName}'", ex);
+                throw new UnauthorizedAccessException($"Access denied writing to bucket '{_bucketName!}'", ex);
             }
         }
 
@@ -111,11 +111,11 @@ namespace Infrastructure.Services
             // We accept this behavior to reduce API calls (cost optimization).
             var request = new DeleteObjectRequest
             {
-                BucketName = _bucketName,
+                BucketName = _bucketName!,
                 Key = NormalizePath(filePath)
             };
 
-            await _s3Client.DeleteObjectAsync(request);
+            await _s3Client!.DeleteObjectAsync(request);
         }
 
   public override async Task<List<string>> ListFilesAsync(string directoryPath, bool recursive)
@@ -130,7 +130,7 @@ namespace Infrastructure.Services
 
     var request = new ListObjectsV2Request
     {
-        BucketName = _bucketName,
+        BucketName = _bucketName!,
         Prefix = prefix
     };
 
@@ -146,7 +146,7 @@ namespace Infrastructure.Services
     {
         do
         {
-            response = await _s3Client.ListObjectsV2Async(request);
+            response = await _s3Client!.ListObjectsV2Async(request);
             
             results.AddRange(response.S3Objects.Select(o => o.Key));
 
@@ -175,7 +175,7 @@ namespace Infrastructure.Services
             try
             {
                 // Lightweight check: Does the bucket exist and do we have access?
-                return await Amazon.S3.Util.AmazonS3Util.DoesS3BucketExistV2Async(_s3Client, _bucketName);
+                return await Amazon.S3.Util.AmazonS3Util.DoesS3BucketExistV2Async(_s3Client, _bucketName!);
             }
             catch
             {
@@ -187,7 +187,7 @@ namespace Infrastructure.Services
 
         private void EnsureInitialized()
         {
-            if (_s3Client == null)
+            if (_s3Client == null || _bucketName == null)
                 throw new InvalidOperationException("S3Provider not initialized.");
         }
 

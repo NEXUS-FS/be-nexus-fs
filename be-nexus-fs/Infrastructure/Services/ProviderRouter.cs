@@ -19,7 +19,7 @@ namespace Infrastructure.Services
             _authManager = authManager;
         }
 
-        public Task<Provider> RouteToProvider(string providerId)
+        public async Task<Provider> RouteToProvider(string providerId)
         {
             try
             {
@@ -54,7 +54,7 @@ namespace Infrastructure.Services
             }
         }
 
-        public Task<FileOperationResponse> ExecuteOperation(
+        public async Task<FileOperationResponse> ExecuteOperation(
             string providerId, string operation, Dictionary<string, object> parameters)
         { 
             var response = new FileOperationResponse

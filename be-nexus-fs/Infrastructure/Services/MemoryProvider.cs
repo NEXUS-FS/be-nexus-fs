@@ -35,16 +35,16 @@ namespace Infrastructure.Services
             await Task.CompletedTask;
         }
 
-        public override async Task<string> ReadFileAsync(string filePath)
+        public override Task<string> ReadFileAsync(string filePath)
         {
             var key = NormalizePath(filePath);
 
             if (!_storage.TryGetValue(key, out var data))
             {
-                throw new System.IO.FileNotFoundException($"File not found in memory: {filePath}");
+                return Task.FromException<string>(new System.IO.FileNotFoundException($"File not found in memory: {filePath}"));
             }
 
-            return Encoding.UTF8.GetString(data);
+            return Task.FromResult(Encoding.UTF8.GetString(data));
         }
 
         public override async Task WriteFileAsync(string filePath, string content)
