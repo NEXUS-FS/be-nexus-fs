@@ -206,10 +206,11 @@ public class FtpProvider : Provider, IAsyncDisposable
                 // CreateDirectory with force=true creates parent directories recursively
                 await client.CreateDirectory(directoryPath, force: true);
             }
-            catch
+            catch (Exception ex)
             {
                 // Directory might already exist or creation failed, continue anyway
                 // UploadStream with createRemoteDir will try to create if needed
+                _logger?.LogWarning($"Failed to create directory '{directoryPath}' on FTP server. Continuing with upload. Exception: {ex.Message}", nameof(FtpProvider));
             }
         }
         
