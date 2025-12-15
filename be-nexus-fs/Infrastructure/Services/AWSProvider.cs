@@ -191,7 +191,7 @@ namespace Infrastructure.Services
                 throw new InvalidOperationException("S3Provider not initialized.");
         }
 
-        private string GetConfigValue(Dictionary<string, string> config, string key, string defaultValue = null)
+        private string GetConfigValue(Dictionary<string, string> config, string key, string defaultValue = "")
         {
             if (config.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
             {
