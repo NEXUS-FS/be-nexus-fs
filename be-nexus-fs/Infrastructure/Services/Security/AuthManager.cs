@@ -238,7 +238,7 @@ namespace Infrastructure.Services.Security
         // [AOP: LoggingAspect] AFTER: Log authentication result
         // [AOP: MetricsAspect] AROUND: Count authentication attempts and measure time
         // [AOP: ErrorHandlingAspect] AFTER_THROWING: Capture and log exceptions
-        public async Task<bool> AuthenticateAsync(Dictionary<string, string> credentials)
+        public Task<bool> AuthenticateAsync(Dictionary<string, string> credentials)
         {
             try
             {
@@ -300,7 +300,7 @@ namespace Infrastructure.Services.Security
         // [AOP: LoggingAspect] AFTER: Log validation result
         // [AOP: MetricsAspect] AROUND: Count validation attempts
         // [AOP: ErrorHandlingAspect] AFTER_THROWING: Capture and log exceptions
-        public async Task<bool> ValidateTokenAsync(string token)
+        public Task<bool> ValidateTokenAsync(string token)
         {
             try
             {
@@ -333,7 +333,7 @@ namespace Infrastructure.Services.Security
         // [AOP: LoggingAspect] AFTER: Log token generation success
         // [AOP: MetricsAspect] AROUND: Count token generations
         // [AOP: ErrorHandlingAspect] AFTER_THROWING: Capture and log exceptions
-        public async Task<string> GenerateTokenAsync(Dictionary<string, string> credentials)
+        public Task<string> GenerateTokenAsync(Dictionary<string, string> credentials)
         {
             try
             {
