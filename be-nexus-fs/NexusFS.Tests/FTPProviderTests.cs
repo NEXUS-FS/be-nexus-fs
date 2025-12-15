@@ -1,6 +1,7 @@
 using FubarDev.FtpServer;
 using Infrastructure.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Xunit.Abstractions;
 
 namespace NexusFS.Tests;
 
@@ -57,9 +58,15 @@ public class TestFtpServer : IAsyncDisposable
 
 public class FtpProviderTests : IAsyncLifetime
 {
+    private readonly ITestOutputHelper _output;
     private TestFtpServer? _ftpServer;
     private int _ftpPort = 2121;
     private FtpProvider? _provider;
+
+    public FtpProviderTests(ITestOutputHelper output)
+    {
+        _output = output;
+    }
 
     public async Task InitializeAsync()
     {
@@ -258,7 +265,7 @@ public class FtpProviderTests : IAsyncLifetime
                     catch (Exception ex)
                     {
                         // Log but don't fail cleanup
-                        Console.WriteLine($"[FtpProviderTests] Error deleting file '{file}' during cleanup: {ex.Message}");
+                        _output.WriteLine($"[FtpProviderTests] Error deleting file '{file}' during cleanup: {ex.Message}");
                     }
                 }
                 
@@ -268,7 +275,7 @@ public class FtpProviderTests : IAsyncLifetime
             catch (Exception ex)
             {
                 // Log but don't fail cleanup
-                Console.WriteLine($"[FtpProviderTests] Error during provider cleanup: {ex.Message}");
+                _output.WriteLine($"[FtpProviderTests] Error during provider cleanup: {ex.Message}");
             }
         }
         
@@ -281,7 +288,7 @@ public class FtpProviderTests : IAsyncLifetime
             catch (Exception ex)
             {
                 // Log but don't fail cleanup
-                Console.WriteLine($"[FtpProviderTests] Error disposing FTP server: {ex.Message}");
+                _output.WriteLine($"[FtpProviderTests] Error disposing FTP server: {ex.Message}");
             }
         }
     }
