@@ -27,11 +27,14 @@ namespace Infrastructure.Services.Security
 
         public async Task ValidateAccessAsync(string? userId, string? path, FileOperation operation)
         {
+            // Validate parameters
+            if (userId == null) throw new UnauthorizedAccessException("User ID required.");
+            if (path == null) throw new UnauthorizedAccessException("Path required.");
+            if (string.IsNullOrWhiteSpace(userId)) throw new UnauthorizedAccessException("User ID required.");
+            if (string.IsNullOrWhiteSpace(path)) throw new UnauthorizedAccessException("Path required.");
+            
             try
             {
-                if (string.IsNullOrWhiteSpace(userId)) throw new UnauthorizedAccessException("User ID required.");
-                if (string.IsNullOrWhiteSpace(path)) throw new UnauthorizedAccessException("Path required.");
-                
                 _logger.LogInformation($"Validating: User '{userId}' -> '{operation}' -> '{path}'", "SandboxGuard");
                 if (path.Contains("..")) 
                 {
