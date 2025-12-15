@@ -41,7 +41,7 @@ namespace Infrastructure.Services
 
             if (!_storage.TryGetValue(key, out var data))
             {
-                return Task.FromException<string>(new System.IO.FileNotFoundException($"File not found in memory: {filePath}"));
+                throw new System.IO.FileNotFoundException($"File not found in memory: {filePath}");
             }
 
             return Task.FromResult(Encoding.UTF8.GetString(data));

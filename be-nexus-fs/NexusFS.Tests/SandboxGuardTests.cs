@@ -49,7 +49,7 @@ namespace NexusFS.Tests
         public async Task ValidateAccessAsync_ShouldThrow_WhenUserIdInvalid(string? invalidUserId)
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-                _sandboxGuard.ValidateAccessAsync(invalidUserId!, "file.txt", FileOperation.Read));
+                _sandboxGuard.ValidateAccessAsync(invalidUserId, "file.txt", FileOperation.Read));
         }
 
         [Theory]
@@ -59,7 +59,7 @@ namespace NexusFS.Tests
         public async Task ValidateAccessAsync_ShouldThrow_WhenPathInvalid(string? invalidPath)
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-                _sandboxGuard.ValidateAccessAsync("user1", invalidPath!, FileOperation.Read));
+                _sandboxGuard.ValidateAccessAsync("user1", invalidPath, FileOperation.Read));
         }
 
         [Theory]
