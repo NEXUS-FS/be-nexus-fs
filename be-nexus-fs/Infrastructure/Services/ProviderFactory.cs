@@ -48,16 +48,20 @@ namespace Infrastructure.Services
            //     "memory" => new MemoryProvider(providerId),
                 "s3" or "aws" => new S3Provider(providerId),
                 "googledrive" or "gdrive" or "google" or "drive" => new GoogleDriveProvider(providerId),
+                "ftp" or "ftps" or "sftp" => new FtpProvider(providerId),
                 _ => throw new NotSupportedException($"Provider type '{providerType}' is not supported.")
             };
         }
 
-        public IEnumerable<string> GetSupportedProviderTypes() => new[] { "Local", "Memory", "S3", "GoogleDrive" };
+        public IEnumerable<string> GetSupportedProviderTypes() => new[] { "Local", "Memory", "S3", "GoogleDrive", "FTP", "FTPS", "SFTP" };
 
         public bool IsProviderTypeSupported(string providerType)
         {
             if (string.IsNullOrWhiteSpace(providerType)) return false;
-            return providerType.ToLowerInvariant() is "local" or "filesystem" or "memory" or "s3" or "aws" or "googledrive" or "gdrive" or "google" or "drive";
+
+            var supportedTypes = new[] { "local", "filesystem", "memory", "s3", "aws", "googledrive", "gdrive", "google", "drive", "ftp", "ftps", "sftp" };
+            
+            return supportedTypes.Contains(providerType.ToLowerInvariant());
         }
     }
 }

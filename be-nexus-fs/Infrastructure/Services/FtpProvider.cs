@@ -11,6 +11,7 @@ public class FtpProvider : Provider, IAsyncDisposable
     private string _username = string.Empty;
     private string _password = string.Empty;
     private int _port = 21;
+    private bool _skipCertificateValidation = false;
     private AsyncFtpClient? _client;
     private readonly SemaphoreSlim _clientLock = new SemaphoreSlim(1, 1);
 
@@ -48,6 +49,17 @@ public class FtpProvider : Provider, IAsyncDisposable
             _port = port;
         }
 
+        // Certificate validation configuration
+        // SECURITY WARNING: Setting skipCertificateValidation to true disables SSL/TLS certificate validation.
+        // This makes the connection vulnerable to man-in-the-middle attacks. Only use in development/testing
+        // environments with self-signed certificates. In production, always use proper certificates and keep
+        // this setting as false (default).
+        if (config.TryGetValue("skipCertificateValidation", out var skipCertStr) && 
+            bool.TryParse(skipCertStr, out var skipCert))
+        {
+            _skipCertificateValidation = skipCert;
+        }
+
         // Create and cache the FTP client
         await EnsureClientAsync();
     }
@@ -55,12 +67,20 @@ public class FtpProvider : Provider, IAsyncDisposable
     /// <summary>
     /// Creates and configures an async FTP client.
     /// </summary>
+    /// <remarks>
+    /// SECURITY: Certificate validation is controlled by the skipCertificateValidation configuration.
+    /// By default, certificates are validated. Only disable validation in development/testing environments.
+    /// </remarks>
     private AsyncFtpClient CreateAsyncFtpClient()
     {
         var client = new AsyncFtpClient(_host, _username, _password, _port);
         client.Config.EncryptionMode = FtpEncryptionMode.None;
         client.Config.DataConnectionType = FtpDataConnectionType.AutoPassive;
-        client.Config.ValidateAnyCertificate = true; // For testing, in production use proper certificates
+        
+        // Certificate validation: false = validate certificates (secure, default)
+        //                        true = skip validation (insecure, only for testing)
+        client.Config.ValidateAnyCertificate = _skipCertificateValidation;
+        
         return client;
     }
 
@@ -81,10 +101,22 @@ public class FtpProvider : Provider, IAsyncDisposable
                 {
                     await _client.AutoConnect();
                 }
-                catch
+                catch (Exception ex)
                 {
+                    // Log the connection failure for debugging
+                    Console.WriteLine($"[FtpProvider] Connection attempt failed for provider {ProviderId} (Host: {_host}:{_port}). " +
+                                    $"Exception: {ex.GetType().Name} - {ex.Message}");
+                    
                     // If reconnect fails, dispose and create a new client
-                    await _client.DisposeAsync();
+                    try
+                    {
+                        await _client.DisposeAsync();
+                    }
+                    catch (Exception disposeEx)
+                    {
+                        Console.WriteLine($"[FtpProvider] Error disposing client for provider {ProviderId}: {disposeEx.Message}");
+                    }
+                    
                     _client = CreateAsyncFtpClient();
                     await _client.AutoConnect();
                 }
@@ -126,10 +158,26 @@ public class FtpProvider : Provider, IAsyncDisposable
         var normalizedPath = NormalizePath(filePath);
         var client = await EnsureClientAsync();
         
-        // Upload text content
+        // Ensure parent directories exist before uploading (createRemoteDir handles this, but we ensure it works)
+        var directoryPath = GetDirectoryPath(normalizedPath);
+        if (!string.IsNullOrEmpty(directoryPath) && directoryPath != "/")
+        {
+            try
+            {
+                // CreateDirectory with force=true creates parent directories recursively
+                await client.CreateDirectory(directoryPath, force: true);
+            }
+            catch
+            {
+                // Directory might already exist or creation failed, continue anyway
+                // UploadStream with createRemoteDir will try to create if needed
+            }
+        }
+        
+        // Upload text content (createRemoteDir ensures directories are created)
         var contentBytes = System.Text.Encoding.UTF8.GetBytes(content);
         using var stream = new MemoryStream(contentBytes);
-        await client.UploadStream(stream, normalizedPath);
+        await client.UploadStream(stream, normalizedPath, createRemoteDir: true);
     }
 
     /// <summary>
@@ -157,8 +205,11 @@ public class FtpProvider : Provider, IAsyncDisposable
             var client = await EnsureClientAsync();
             return client.IsConnected;
         }
-        catch
+        catch (Exception ex)
         {
+            // Log connection test failure for debugging
+            Console.WriteLine($"[FtpProvider] Connection test failed for provider {ProviderId} (Host: {_host}:{_port}). " +
+                            $"Exception: {ex.GetType().Name} - {ex.Message}");
             return false;
         }
     }
@@ -254,6 +305,18 @@ public class FtpProvider : Provider, IAsyncDisposable
         }
         
         return path;
+    }
+
+    /// <summary>
+    /// Extracts the directory path from a file path.
+    /// </summary>
+    private string GetDirectoryPath(string filePath)
+    {
+        var lastSlash = filePath.LastIndexOf('/');
+        if (lastSlash <= 0)
+            return "/";
+        
+        return filePath.Substring(0, lastSlash);
     }
 
     #endregion
