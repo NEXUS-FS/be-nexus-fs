@@ -70,7 +70,43 @@
         // [AOP: LoggingAspect] AFTER: Log initialization result
         // [AOP: ErrorHandlingAspect] AFTER_THROWING: Capture and log exceptions
         public abstract Task Initialize(Dictionary<string, string> config);
-		public abstract Task<List<string>> ListFilesAsync(string directoryPath, bool recursive);
+
+        /// <summary>
+        /// Lists files in a directory on the storage provider.
+        /// </summary>
+        /// <param name="directoryPath">The directory path to list</param>
+        /// <param name="recursive">Whether to list files recursively</param>
+        /// <returns>List of file paths</returns>
+        // [AOP: LoggingAspect] BEFORE: Log method entry with parameters
+        // [AOP: LoggingAspect] AFTER: Log method exit with result
+        // [AOP: RetryAspect] AROUND: Retry on transient network/storage failures
+        // [AOP: MetricsAspect] AROUND: Measure execution time and count operations
+        // [AOP: ErrorHandlingAspect] AFTER_THROWING: Capture and log exceptions
+        public abstract Task<List<string>> ListFilesAsync(string directoryPath, bool recursive);
+
+        /// <summary>
+        /// Checks if a file exists on the storage provider.
+        /// </summary>
+        /// <param name="filePath">The file path to check</param>
+        /// <returns>True if file exists, false otherwise</returns>
+        // [AOP: LoggingAspect] BEFORE: Log method entry with parameters
+        // [AOP: LoggingAspect] AFTER: Log method exit with result
+        // [AOP: RetryAspect] AROUND: Retry on transient network/storage failures
+        // [AOP: MetricsAspect] AROUND: Measure execution time and count operations
+        // [AOP: ErrorHandlingAspect] AFTER_THROWING: Capture and log exceptions
+        public abstract Task<bool> ExistsAsync(string filePath);
+
+        /// <summary>
+        /// Gets file metadata/statistics from the storage provider.
+        /// </summary>
+        /// <param name="filePath">The file path to get statistics for</param>
+        /// <returns>Dictionary containing file metadata (e.g., Size, CreatedAt, ModifiedAt, IsDirectory)</returns>
+        // [AOP: LoggingAspect] BEFORE: Log method entry with parameters
+        // [AOP: LoggingAspect] AFTER: Log method exit with result
+        // [AOP: RetryAspect] AROUND: Retry on transient network/storage failures
+        // [AOP: MetricsAspect] AROUND: Measure execution time and count operations
+        // [AOP: ErrorHandlingAspect] AFTER_THROWING: Capture and log exceptions
+        public abstract Task<Dictionary<string, object>> StatAsync(string filePath);
 
     }
 }

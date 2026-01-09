@@ -183,6 +183,22 @@ namespace Infrastructure.Services
             }
         }
 
+        /// <summary>
+        /// Checks if a file exists in the S3 bucket.
+        /// </summary>
+        public override Task<bool> ExistsAsync(string filePath)
+        {
+            throw new NotImplementedException("ExistsAsync is not yet implemented for S3Provider");
+        }
+
+        /// <summary>
+        /// Gets file metadata/statistics from the S3 bucket.
+        /// </summary>
+        public override Task<Dictionary<string, object>> StatAsync(string filePath)
+        {
+            throw new NotImplementedException("StatAsync is not yet implemented for S3Provider");
+        }
+
         // --- Helpers ---
 
         private void EnsureInitialized()

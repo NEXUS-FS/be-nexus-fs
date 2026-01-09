@@ -200,8 +200,13 @@ namespace Infrastructure.Services.Decorators
                 await _decoratedProvider.WriteFileAsync(filePath, content);
 
                 // AOP AFTER: Invalidate cache entries that are now stale
-                var cacheKey = GenerateCacheKey("file-content", filePath);
-                _memoryCache.Remove(cacheKey);
+                var contentCacheKey = GenerateCacheKey("file-content", filePath);
+                var existsCacheKey = GenerateCacheKey("file-exists", filePath);
+                var statCacheKey = GenerateCacheKey("file-stat", filePath);
+                
+                _memoryCache.Remove(contentCacheKey);
+                _memoryCache.Remove(existsCacheKey);
+                _memoryCache.Remove(statCacheKey);
 
                 _logger?.LogInformation($"File written and cache invalidated for: {filePath}", "CachedProviderDecorator");
             }
@@ -244,8 +249,13 @@ namespace Infrastructure.Services.Decorators
                 await _decoratedProvider.DeleteFileAsync(filePath);
 
                 // AOP AFTER: Clean up cache entries for the deleted file
-                var cacheKey = GenerateCacheKey("file-content", filePath);
-                _memoryCache.Remove(cacheKey);
+                var contentCacheKey = GenerateCacheKey("file-content", filePath);
+                var existsCacheKey = GenerateCacheKey("file-exists", filePath);
+                var statCacheKey = GenerateCacheKey("file-stat", filePath);
+                
+                _memoryCache.Remove(contentCacheKey);
+                _memoryCache.Remove(existsCacheKey);
+                _memoryCache.Remove(statCacheKey);
 
                 _logger?.LogInformation($"File deleted and cache cleaned for: {filePath}", "CachedProviderDecorator");
             }
@@ -286,6 +296,130 @@ namespace Infrastructure.Services.Decorators
             catch (Exception ex)
             {
                 _logger?.LogError($"Error listing directory {directoryPath}, invalidating cache", "CachedProviderDecorator", ex);
+                _memoryCache.Remove(cacheKey);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Checks if a file exists with caching support.
+        /// 
+        /// AOP Join Point: AROUND advice pattern
+        /// - BEFORE: Check cache for file existence
+        /// - PROCEED: Execute existence check on decorated provider if cache miss
+        /// - AFTER: Cache the existence result
+        /// 
+        /// Cache Strategy:
+        /// 1. Check cache for cached existence status
+        /// 2. On cache miss, delegate to decorated provider
+        /// 3. Cache the result with shorter TTL (existence can change)
+        /// 
+        /// AOP Aspects Applied:
+        /// [LoggingAspect] - Logs existence check operations
+        /// [MetricsAspect] - Tracks cache hit ratio for existence checks
+        /// [ErrorHandlingAspect] - Handles errors gracefully
+        /// </summary>
+        /// <param name="filePath">The file path to check</param>
+        /// <returns>True if file exists, false otherwise</returns>
+        // AOP Advice Points:
+        // [BEFORE] Log existence check and cache lookup
+        // [AROUND] Measure existence check time
+        // [AFTER] Cache result and log outcome
+        // [AFTER_THROWING] Handle errors and invalidate cache
+        public override async Task<bool> ExistsAsync(string filePath)
+        {
+            var cacheKey = GenerateCacheKey("file-exists", filePath);
+
+            // Check for cached existence status
+            if (_memoryCache.TryGetValue(cacheKey, out object? cachedValue) && cachedValue is bool cachedExists)
+            {
+                _logger?.LogInformation($"Cache HIT for file existence check: {filePath}", "CachedProviderDecorator");
+                return cachedExists;
+            }
+
+            _logger?.LogInformation($"Cache MISS for file existence check: {filePath}, delegating to provider", "CachedProviderDecorator");
+
+            try
+            {
+                var exists = await _decoratedProvider.ExistsAsync(filePath);
+
+                // Cache the existence result with shorter TTL since existence can change
+                var cacheOptions = new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5),
+                    Priority = CacheItemPriority.Normal
+                };
+
+                _memoryCache.Set(cacheKey, exists, cacheOptions);
+                _logger?.LogInformation($"Cached file existence for: {filePath}, exists: {exists}", "CachedProviderDecorator");
+
+                return exists;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"Error checking file existence for {filePath}, invalidating cache", "CachedProviderDecorator", ex);
+                _memoryCache.Remove(cacheKey);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Gets file metadata/statistics with caching support.
+        /// 
+        /// AOP Join Point: AROUND advice pattern
+        /// - BEFORE: Check cache for file statistics
+        /// - PROCEED: Execute stat operation on decorated provider if cache miss
+        /// - AFTER: Cache the statistics result
+        /// 
+        /// Cache Strategy:
+        /// 1. Check cache for cached file statistics
+        /// 2. On cache miss, delegate to decorated provider
+        /// 3. Cache the result with moderate TTL (statistics change less frequently than content)
+        /// 
+        /// AOP Aspects Applied:
+        /// [LoggingAspect] - Logs stat operations
+        /// [MetricsAspect] - Tracks cache hit ratio for stat operations
+        /// [ErrorHandlingAspect] - Handles errors gracefully
+        /// </summary>
+        /// <param name="filePath">The file path to get statistics for</param>
+        /// <returns>Dictionary containing file metadata</returns>
+        // AOP Advice Points:
+        // [BEFORE] Log stat operation and cache lookup
+        // [AROUND] Measure stat operation time
+        // [AFTER] Cache result and log outcome
+        // [AFTER_THROWING] Handle errors and invalidate cache
+        public override async Task<Dictionary<string, object>> StatAsync(string filePath)
+        {
+            var cacheKey = GenerateCacheKey("file-stat", filePath);
+
+            // Check for cached file statistics
+            if (_memoryCache.TryGetValue(cacheKey, out object? cachedValue) && cachedValue is Dictionary<string, object> cachedStat)
+            {
+                _logger?.LogInformation($"Cache HIT for file statistics: {filePath}", "CachedProviderDecorator");
+                return cachedStat;
+            }
+
+            _logger?.LogInformation($"Cache MISS for file statistics: {filePath}, delegating to provider", "CachedProviderDecorator");
+
+            try
+            {
+                var stat = await _decoratedProvider.StatAsync(filePath);
+
+                // Cache the statistics with moderate TTL
+                var cacheOptions = new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
+                    Priority = CacheItemPriority.Normal
+                };
+
+                _memoryCache.Set(cacheKey, stat, cacheOptions);
+                _logger?.LogInformation($"Cached file statistics for: {filePath}", "CachedProviderDecorator");
+
+                return stat;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"Error getting file statistics for {filePath}, invalidating cache", "CachedProviderDecorator", ex);
                 _memoryCache.Remove(cacheKey);
                 throw;
             }

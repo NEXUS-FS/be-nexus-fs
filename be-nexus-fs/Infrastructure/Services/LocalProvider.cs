@@ -112,7 +112,21 @@ namespace Infrastructure.Services
             return Directory.Exists(_basePath);
         }
 
-      
+        /// <summary>
+        /// Checks if a file exists on the local file system.
+        /// </summary>
+        public override Task<bool> ExistsAsync(string filePath)
+        {
+            throw new NotImplementedException("ExistsAsync is not yet implemented for LocalProvider");
+        }
+
+        /// <summary>
+        /// Gets file metadata/statistics from the local file system.
+        /// </summary>
+        public override Task<Dictionary<string, object>> StatAsync(string filePath)
+        {
+            throw new NotImplementedException("StatAsync is not yet implemented for LocalProvider");
+        }
 
         private void EnsureInitialized()
         {
