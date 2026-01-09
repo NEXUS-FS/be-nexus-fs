@@ -32,10 +32,10 @@ namespace Infrastructure.Services
         // [AOP: AuthenticationAspect] BEFORE: Validate user authentication and authorization
         // [AOP: MetricsAspect] AROUND: Measure execution time and count requests
         // [AOP: ErrorHandlingAspect] AFTER_THROWING: Capture, log, and wrap exceptions
-        public async Task<FileOperationResponse> ReadFile(string providerId, string filePath)
+        public Task<FileOperationResponse> ReadFile(string providerId, string filePath)
         {
             // Will be implemented in Story 2
-            throw new NotImplementedException();
+            return Task.FromException<FileOperationResponse>(new NotImplementedException());
         }
 
         /// <summary>
@@ -50,10 +50,10 @@ namespace Infrastructure.Services
         // [AOP: AuthenticationAspect] BEFORE: Validate user authentication and authorization
         // [AOP: MetricsAspect] AROUND: Measure execution time and count requests
         // [AOP: ErrorHandlingAspect] AFTER_THROWING: Capture, log, and wrap exceptions
-        public async Task<FileOperationResponse> WriteFile(string providerId, string filePath, string content)
+        public Task<FileOperationResponse> WriteFile(string providerId, string filePath, string content)
         {
             // Will be implemented in Story 2
-            throw new NotImplementedException();
+            return Task.FromException<FileOperationResponse>(new NotImplementedException());
         }
 
         /// <summary>
@@ -67,10 +67,10 @@ namespace Infrastructure.Services
         // [AOP: AuthenticationAspect] BEFORE: Validate user authentication and authorization
         // [AOP: MetricsAspect] AROUND: Measure execution time and count requests
         // [AOP: ErrorHandlingAspect] AFTER_THROWING: Capture, log, and wrap exceptions
-        public async Task<FileOperationResponse> DeleteFile(string providerId, string filePath)
+        public Task<FileOperationResponse> DeleteFile(string providerId, string filePath)
         {
             // Will be implemented in Story 2
-            throw new NotImplementedException();
+            return Task.FromException<FileOperationResponse>(new NotImplementedException());
         }
     }
 }

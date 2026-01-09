@@ -13,8 +13,8 @@ namespace Infrastructure.Services
 {
     public class S3Provider : Provider
     {
-        private IAmazonS3 _s3Client;
-        private string _bucketName;
+        private IAmazonS3 _s3Client = null!;
+        private string _bucketName = null!;
 
         public S3Provider(string providerId, string providerType, Dictionary<string, string> configuration) 
             : base(providerId, providerType, configuration)
@@ -187,7 +187,7 @@ namespace Infrastructure.Services
 
         private void EnsureInitialized()
         {
-            if (_s3Client == null)
+            if (_s3Client == null || _bucketName == null)
                 throw new InvalidOperationException("S3Provider not initialized.");
         }
 

@@ -20,7 +20,7 @@ namespace Infrastructure.Repositories
         /// <summary>
         /// Gets a provider by its unique identifier.
         /// </summary>
-        public async Task<ProviderEntity> GetByIdAsync(string id)
+        public async Task<ProviderEntity?> GetByIdAsync(string id)
         {
             if (string.IsNullOrWhiteSpace(id))
                 return null;
