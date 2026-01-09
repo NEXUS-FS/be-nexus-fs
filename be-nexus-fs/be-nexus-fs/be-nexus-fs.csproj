@@ -7,6 +7,8 @@
     <RootNamespace>be_nexus_fs</RootNamespace>
     <UserSecretsId>fb802662-a98b-4e08-b39b-52f5db2dcbdb</UserSecretsId>
     <DockerDefaultTargetOS>Windows</DockerDefaultTargetOS>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

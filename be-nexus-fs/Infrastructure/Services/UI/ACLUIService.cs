@@ -29,54 +29,54 @@ namespace Infrastructure.Services.UI
 
 
         /// Retrieves all users with their assigned permissions.
-        public async Task<IEnumerable<UserPermissionsDto>> GetUsersWithPermissionsAsync()
+        public Task<IEnumerable<UserPermissionsDto>> GetUsersWithPermissionsAsync()
         {
             // TODO: implement mapping from users and ACLManager
-            throw new NotImplementedException();
+            return Task.FromException<IEnumerable<UserPermissionsDto>>(new NotImplementedException());
         }
 
 
         /// Checks if a user has access to a provider.
-        public async Task<bool> UserHasAccessToProviderAsync(string username, int providerId, string permission)
+        public Task<bool> UserHasAccessToProviderAsync(string username, int providerId, string permission)
         {
             // TODO: implement actual provider lookup and sandbox/ACL check
-            throw new NotImplementedException();
+            return Task.FromException<bool>(new NotImplementedException());
         }
 
 
         /// Grants a permission to a user.
-        public async Task GrantPermissionAsync(string username, string permission)
+        public Task GrantPermissionAsync(string username, string permission)
         {
             // TODO: implement grant logic
-            throw new NotImplementedException();
+            return Task.FromException(new NotImplementedException());
         }
 
 
         /// Revokes a permission from a user.
-        public async Task RevokePermissionAsync(string username, string permission)
+        public Task RevokePermissionAsync(string username, string permission)
         {
             // TODO: implement revoke logic
-            throw new NotImplementedException();
+            return Task.FromException(new NotImplementedException());
         }
 
 
         /// Retrieves all allowed sandbox paths for a given strategy/user.
-        public async Task<IEnumerable<string>> GetSandboxPathsAsync()
+        public Task<IEnumerable<string>> GetSandboxPathsAsync()
         {
-            throw new NotImplementedException();
+            return Task.FromException<IEnumerable<string>>(new NotImplementedException());
         }
 
 
-        /// Adds a path to the sandbox’s allowed paths.
-        public async Task AddSandboxPathAsync(string path)
+        /// Adds a path to the sandbox's allowed paths.
+        public Task AddSandboxPathAsync(string path)
         {
-            throw new NotImplementedException();
+            return Task.FromException(new NotImplementedException());
         }
 
-        /// Removes a path from the sandbox’s allowed paths.
-        public async Task RemoveSandboxPathAsync(string path)
+        /// Removes a path from the sandbox's allowed paths.
+        public Task RemoveSandboxPathAsync(string path)
         {
-            throw new NotImplementedException();
+            return Task.FromException(new NotImplementedException());
         }
     }
 }

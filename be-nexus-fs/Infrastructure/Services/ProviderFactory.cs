@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+﻿using Infrastructure.Services.Observability;
 
 namespace Infrastructure.Services
 {
@@ -8,33 +6,33 @@ namespace Infrastructure.Services
     {
         public ProviderFactory() { }
 
-        public Provider CreateProvider(string providerType, string providerId)
+        public Provider CreateProvider(string providerType, string providerId, Logger? logger = null)
         {
             // Validation logic is centralized in InstantiateProvider
-            return InstantiateProvider(providerType, providerId);
+            return InstantiateProvider(providerType, providerId, logger);
         }
 
-        public async Task<Provider> CreateProviderAsync(string providerType, string providerId, Dictionary<string, string> configuration)
+        public async Task<Provider> CreateProviderAsync(string providerType, string providerId, Dictionary<string, string> configuration, Logger? logger = null)
         {
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
             
-            var provider = InstantiateProvider(providerType, providerId);
+            var provider = InstantiateProvider(providerType, providerId, logger);
             await provider.Initialize(configuration);
             return provider;
         }
 
-        public Provider CreateProvider(string providerType, string providerId, Dictionary<string, string> configuration)
+        public Provider CreateProvider(string providerType, string providerId, Dictionary<string, string> configuration, Logger? logger = null)
         {
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
 
-            var provider = InstantiateProvider(providerType, providerId);
+            var provider = InstantiateProvider(providerType, providerId, logger);
             
             // Sync wait is safe here for tests/startup
             provider.Initialize(configuration).GetAwaiter().GetResult(); 
             return provider;
         }
 
-        private Provider InstantiateProvider(string providerType, string providerId)
+        private Provider InstantiateProvider(string providerType, string providerId, Logger? logger = null)
         {
             if (string.IsNullOrWhiteSpace(providerType))
                 throw new ArgumentException("Provider type cannot be empty", nameof(providerType));
@@ -47,16 +45,21 @@ namespace Infrastructure.Services
                 "local" or "filesystem" => new LocalProvider(providerId),
            //     "memory" => new MemoryProvider(providerId),
                 "s3" or "aws" => new S3Provider(providerId),
+                "googledrive" or "gdrive" or "google" or "drive" => new GoogleDriveProvider(providerId, driveClient: null, memoryCache: null, logger: logger),
+                "ftp" or "ftps" or "sftp" => new FtpProvider(providerId, logger),
                 _ => throw new NotSupportedException($"Provider type '{providerType}' is not supported.")
             };
         }
 
-        public IEnumerable<string> GetSupportedProviderTypes() => new[] { "Local", "Memory", "S3" };
+        public IEnumerable<string> GetSupportedProviderTypes() => new[] { "Local", "Memory", "S3", "GoogleDrive", "FTP", "FTPS", "SFTP" };
 
         public bool IsProviderTypeSupported(string providerType)
         {
             if (string.IsNullOrWhiteSpace(providerType)) return false;
-            return providerType.ToLowerInvariant() is "local" or "filesystem" or "memory" or "s3" or "aws";
+
+            var supportedTypes = new[] { "local", "filesystem", "memory", "s3", "aws", "googledrive", "gdrive", "google", "drive", "ftp", "ftps", "sftp" };
+            
+            return supportedTypes.Contains(providerType.ToLowerInvariant());
         }
     }
 }
