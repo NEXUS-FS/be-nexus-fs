@@ -32,14 +32,17 @@ public class FtpProvider : Provider
 
         Configuration = config ?? throw new ArgumentNullException(nameof(config));
 
-        if (!config.TryGetValue("host", out _host))
+        if (!config.TryGetValue("host", out var hostValue) || string.IsNullOrWhiteSpace(hostValue))
             throw new ArgumentException("host configuration is required for FtpProvider");
+        _host = hostValue!;
 
-        if (!config.TryGetValue("username", out _username))
+        if (!config.TryGetValue("username", out var usernameValue) || string.IsNullOrWhiteSpace(usernameValue))
             throw new ArgumentException("username configuration is required for FtpProvider");
+        _username = usernameValue!;
 
-        if (!config.TryGetValue("password", out _password))
+        if (!config.TryGetValue("password", out var passwordValue) || string.IsNullOrWhiteSpace(passwordValue))
             throw new ArgumentException("password configuration is required for FtpProvider");
+        _password = passwordValue!;
 
         if (config.TryGetValue("port", out var portStr) && int.TryParse(portStr, out var port))
         {

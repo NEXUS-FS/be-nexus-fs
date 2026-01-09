@@ -25,14 +25,15 @@ namespace Infrastructure.Services.Security
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task ValidateAccessAsync(string userId, string path, FileOperation operation)
+        public async Task ValidateAccessAsync(string? userId, string? path, FileOperation operation)
         {
+            // Validate parameters
+            if (string.IsNullOrWhiteSpace(userId)) throw new UnauthorizedAccessException("User ID required.");
+            if (string.IsNullOrWhiteSpace(path)) throw new UnauthorizedAccessException("Path required.");
+            
             try
             {
                 _logger.LogInformation($"Validating: User '{userId}' -> '{operation}' -> '{path}'", "SandboxGuard");
-
-              
-                if (string.IsNullOrWhiteSpace(path)) throw new UnauthorizedAccessException("Path required.");
                 if (path.Contains("..")) 
                 {
                     _logger.LogWarning($"Path traversal detected: {path}", "SandboxGuard");
