@@ -58,13 +58,19 @@ public class ProviderFactoryTests
     }
 
     [Fact]
-    public void CreateProvider_WithFtpType_ShouldReturnFtpProvider()
+    public async Task CreateProvider_WithFtpType_ShouldReturnFtpProvider()
     {
-        var config = new Dictionary<string, string> 
-        { 
-            { "host", "ftp.example.com" },
-            { "username", "testuser" },
-            { "password", "testpass" }
+        var port = 2123;
+        await using var server = new TestFtpServer(port);
+        await server.StartAsync();
+
+        var config = new Dictionary<string, string>
+        {
+            { "host", "127.0.0.1" },
+            { "username", "anonymous" },
+            { "password", "anonymous@example.com" },
+            { "port", port.ToString() },
+            { "encryptionMode", "None" }
         };
 
         var provider = _factory.CreateProvider("FTP", "test-ftp", config);
@@ -76,13 +82,19 @@ public class ProviderFactoryTests
     }
 
     [Fact]
-    public void CreateProvider_WithFtpTypeLowerCase_ShouldReturnFtpProvider()
+    public async Task CreateProvider_WithFtpTypeLowerCase_ShouldReturnFtpProvider()
     {
-        var config = new Dictionary<string, string> 
-        { 
-            { "host", "ftp.example.com" },
-            { "username", "testuser" },
-            { "password", "testpass" }
+        var port = 2124;
+        await using var server = new TestFtpServer(port);
+        await server.StartAsync();
+
+        var config = new Dictionary<string, string>
+        {
+            { "host", "127.0.0.1" },
+            { "username", "anonymous" },
+            { "password", "anonymous@example.com" },
+            { "port", port.ToString() },
+            { "encryptionMode", "None" }
         };
 
         var provider = _factory.CreateProvider("ftp", "test-ftp", config);
@@ -174,11 +186,17 @@ public class ProviderFactoryTests
     [Fact]
     public async Task CreateProviderAsync_WithFtpType_ShouldReturnInitializedFtpProvider()
     {
-        var config = new Dictionary<string, string> 
-        { 
-            { "host", "ftp.example.com" },
-            { "username", "testuser" },
-            { "password", "testpass" }
+        var port = 2125;
+        await using var server = new TestFtpServer(port);
+        await server.StartAsync();
+
+        var config = new Dictionary<string, string>
+        {
+            { "host", "127.0.0.1" },
+            { "username", "anonymous" },
+            { "password", "anonymous@example.com" },
+            { "port", port.ToString() },
+            { "encryptionMode", "None" }
         };
 
         var provider = await _factory.CreateProviderAsync("FTP", "test-ftp", config);
