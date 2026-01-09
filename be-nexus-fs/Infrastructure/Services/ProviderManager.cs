@@ -1,20 +1,16 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text.Json;
-using System.Threading.Tasks;
+﻿using System.Text.Json;
 using Domain.Entities;
 using Domain.Repositories;
 using Infrastructure.Services.Observability;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Infrastructure.Services
-/// <summary>
-/// Observer Pattern implementation.
-/// Manages provider registration, discovery, and notifies observers of changes.
-/// </summary>
-/// 
 {
+    /// <summary>
+    /// Observer Pattern implementation.
+    /// Manages provider registration, discovery, and notifies observers of changes.
+    /// </summary>
+    /// 
     public class ProviderManager
     {
         private readonly Dictionary<string, Provider> _providers;
@@ -76,7 +72,7 @@ namespace Infrastructure.Services
                             : new Dictionary<string, string>();
 
                         // create provider instance
-                        var provider = await _providerFactory.CreateProviderAsync(entity.Type, entity.Id, config);
+                        var provider = await _providerFactory.CreateProviderAsync(entity.Type, entity.Id, config, _logger);
 
                         // 4. Add to Memory
                         // We use RegisterProvider to ensure observers are notified if needed, 
