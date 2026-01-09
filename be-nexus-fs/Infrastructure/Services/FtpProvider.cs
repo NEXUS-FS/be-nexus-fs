@@ -1,9 +1,11 @@
-﻿using System.Net;
+using FluentFTP;
+using Infrastructure.Services.Observability;
+using Domain.Models;
 
 namespace Infrastructure.Services;
 
 /// <summary>
-/// FTP storage provider implementation.
+/// FTP storage provider implementation using FluentFTP.
 /// </summary>
 public class FtpProvider : Provider
 {
@@ -11,6 +13,8 @@ public class FtpProvider : Provider
     private string _username = string.Empty;
     private string _password = string.Empty;
     private int _port = 21;
+    private AsyncFtpClient? _client;
+    private readonly SemaphoreSlim _clientLock = new(1, 1);
 
     public FtpProvider(string providerId, string providerType, Dictionary<string, string> configuration) 
         : base(providerId, providerType, configuration)
@@ -21,6 +25,11 @@ public class FtpProvider : Provider
     public FtpProvider(string providerId) 
         : base(providerId, "FTP", new Dictionary<string, string>())
     {
+    }
+
+    public override ProviderCapabilities GetCapabilities()
+    {
+        return ProviderCapabilities.ForFtp();
     }
 
     /// <summary>
@@ -53,14 +62,14 @@ public class FtpProvider : Provider
     public override async Task<string> ReadFileAsync(string filePath)
     {
         ValidateInitialization();
-
-        var ftpUri = GetFtpUri(filePath);
-        var request = CreateFtpRequest(ftpUri, WebRequestMethods.Ftp.DownloadFile);
-
-        using var response = (FtpWebResponse)await request.GetResponseAsync();
-        using var stream = response.GetResponseStream();
+        var normalizedPath = NormalizePath(filePath);
+        var client = await EnsureClientAsync();
+        
+        using var stream = new MemoryStream();
+        await client.DownloadStream(stream, normalizedPath);
+        stream.Position = 0;
+        
         using var reader = new StreamReader(stream);
-
         return await reader.ReadToEndAsync();
     }
 
@@ -70,18 +79,18 @@ public class FtpProvider : Provider
     public override async Task WriteFileAsync(string filePath, string content)
     {
         ValidateInitialization();
-
-        var ftpUri = GetFtpUri(filePath);
-        var request = CreateFtpRequest(ftpUri, WebRequestMethods.Ftp.UploadFile);
-
-        var contentBytes = System.Text.Encoding.UTF8.GetBytes(content);
-        request.ContentLength = contentBytes.Length;
-
-        using var requestStream = await request.GetRequestStreamAsync();
-        await requestStream.WriteAsync(contentBytes, 0, contentBytes.Length);
-
-        using var response = (FtpWebResponse)await request.GetResponseAsync();
-        // File uploaded successfully
+        var normalizedPath = NormalizePath(filePath);
+        var client = await EnsureClientAsync();
+        
+        // Ensure destination directory exists
+        var destDir = GetDirectoryPath(normalizedPath);
+        if (!string.IsNullOrEmpty(destDir) && destDir != "/")
+        {
+            await client.CreateDirectory(destDir, force: true);
+        }
+        
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content));
+        await client.UploadStream(stream, normalizedPath, createRemoteDir: true);
     }
 
     /// <summary>
@@ -90,12 +99,10 @@ public class FtpProvider : Provider
     public override async Task DeleteFileAsync(string filePath)
     {
         ValidateInitialization();
-
-        var ftpUri = GetFtpUri(filePath);
-        var request = CreateFtpRequest(ftpUri, WebRequestMethods.Ftp.DeleteFile);
-
-        using var response = (FtpWebResponse)await request.GetResponseAsync();
-        // File deleted successfully
+        var normalizedPath = NormalizePath(filePath);
+        var client = await EnsureClientAsync();
+        
+        await client.DeleteFile(normalizedPath);
     }
 
     /// <summary>
@@ -108,19 +115,201 @@ public class FtpProvider : Provider
 
         try
         {
-            var ftpUri = new Uri($"ftp://{_host}:{_port}/");
-            var request = (FtpWebRequest)WebRequest.Create(ftpUri);
-            request.Method = WebRequestMethods.Ftp.ListDirectory;
-            request.Credentials = new NetworkCredential(_username, _password);
-            request.Timeout = 5000;
-
-            using var response = (FtpWebResponse)await request.GetResponseAsync();
-            return response.StatusCode == FtpStatusCode.OpeningData || 
-                   response.StatusCode == FtpStatusCode.DataAlreadyOpen;
+            var client = await EnsureClientAsync();
+            return client.IsConnected;
         }
         catch
         {
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Lists files in a directory on the FTP server.
+    /// </summary>
+    public override async Task<List<string>> ListFilesAsync(string directoryPath, bool recursive)
+    {
+        ValidateInitialization();
+        
+        var normalizedPath = NormalizePath(directoryPath);
+        var files = new List<string>();
+        var client = await EnsureClientAsync();
+        
+        if (recursive)
+        {
+            var items = await client.GetListing(normalizedPath, FtpListOption.Recursive);
+            foreach (var item in items)
+            {
+                if (item.Type == FtpObjectType.File)
+                {
+                    // Remove leading / for consistency with file paths
+                    var filePath = item.FullName.TrimStart('/');
+                    files.Add(filePath);
+                }
+            }
+        }
+        else
+        {
+            var items = await client.GetListing(normalizedPath);
+            foreach (var item in items)
+            {
+                if (item.Type == FtpObjectType.File)
+                {
+                    // Remove leading / for consistency with file paths
+                    var filePath = item.FullName.TrimStart('/');
+                    files.Add(filePath);
+                }
+            }
+        }
+        
+        return files;
+    }
+
+    public override async Task<FileMetadata> StatAsync(string path)
+    {
+        ValidateInitialization();
+        var normalizedPath = NormalizePath(path);
+        var client = await EnsureClientAsync();
+
+        var metadata = new FileMetadata
+        {
+            Path = path,
+            Name = Path.GetFileName(path) ?? path
+        };
+
+        try
+        {
+            var item = await client.GetObjectInfo(normalizedPath);
+            if (item != null)
+            {
+                metadata.Exists = true;
+                metadata.IsDirectory = item.Type == FtpObjectType.Directory;
+                metadata.Size = item.Size;
+                metadata.Modified = item.Modified;
+                metadata.Created = item.Created;
+            }
+            else
+            {
+                metadata.Exists = false;
+            }
+        }
+        catch
+        {
+            metadata.Exists = false;
+        }
+
+        return metadata;
+    }
+
+    public override async Task MkdirAsync(string path, bool recursive = true)
+    {
+        ValidateInitialization();
+        var normalizedPath = NormalizePath(path);
+        var client = await EnsureClientAsync();
+
+        await client.CreateDirectory(normalizedPath, force: recursive);
+    }
+
+    public override async Task CopyAsync(string sourcePath, string destinationPath)
+    {
+        ValidateInitialization();
+        
+        // FTP doesn't have native copy, so we download and re-upload
+        var sourceNormalized = NormalizePath(sourcePath);
+        var destNormalized = NormalizePath(destinationPath);
+        var client = await EnsureClientAsync();
+
+        using var stream = new MemoryStream();
+        await client.DownloadStream(stream, sourceNormalized);
+        stream.Position = 0;
+        
+        // Ensure destination directory exists
+        var destDir = GetDirectoryPath(destNormalized);
+        if (!string.IsNullOrEmpty(destDir) && destDir != "/")
+        {
+            await client.CreateDirectory(destDir, force: true);
+        }
+        
+        await client.UploadStream(stream, destNormalized, createRemoteDir: true);
+    }
+
+    public override async Task MoveAsync(string sourcePath, string destinationPath)
+    {
+        ValidateInitialization();
+        var sourceNormalized = NormalizePath(sourcePath);
+        var destNormalized = NormalizePath(destinationPath);
+        var client = await EnsureClientAsync();
+
+        // Ensure destination directory exists
+        var destDir = GetDirectoryPath(destNormalized);
+        if (!string.IsNullOrEmpty(destDir) && destDir != "/")
+        {
+            await client.CreateDirectory(destDir, force: true);
+        }
+
+        await client.MoveFile(sourceNormalized, destNormalized);
+    }
+
+    public override async Task<bool> ExistsAsync(string path)
+    {
+        ValidateInitialization();
+        var normalizedPath = NormalizePath(path);
+        var client = await EnsureClientAsync();
+
+        return await client.FileExists(normalizedPath) || await client.DirectoryExists(normalizedPath);
+    }
+
+    public override async Task<Stream> ReadStreamAsync(string filePath)
+    {
+        ValidateInitialization();
+        var normalizedPath = NormalizePath(filePath);
+        var client = await EnsureClientAsync();
+        
+        // Download to memory stream and return it
+        var stream = new MemoryStream();
+        await client.DownloadStream(stream, normalizedPath);
+        stream.Position = 0;
+        return stream;
+    }
+
+    public override async Task WriteStreamAsync(string filePath, Stream content)
+    {
+        ValidateInitialization();
+        var normalizedPath = NormalizePath(filePath);
+        var client = await EnsureClientAsync();
+        
+        // Ensure destination directory exists
+        var destDir = GetDirectoryPath(normalizedPath);
+        if (!string.IsNullOrEmpty(destDir) && destDir != "/")
+        {
+            await client.CreateDirectory(destDir, force: true);
+        }
+        
+        await client.UploadStream(content, normalizedPath, createRemoteDir: true);
+    }
+
+    /// <summary>
+    /// Disposes the cached FTP client.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        await _clientLock.WaitAsync();
+        try
+        {
+            if (_client != null)
+            {
+                if (_client.IsConnected)
+                {
+                    await _client.Disconnect();
+                }
+                _client.Dispose();
+                _client = null;
+            }
+        }
+        finally
+        {
+            _clientLock.Release();
+            _clientLock.Dispose();
         }
     }
 
@@ -132,71 +321,42 @@ public class FtpProvider : Provider
             throw new InvalidOperationException("Provider not initialized. Call Initialize() first.");
     }
 
-    private Uri GetFtpUri(string filePath)
+    private async Task<AsyncFtpClient> EnsureClientAsync()
     {
-        var path = filePath.TrimStart('/');
-        return new Uri($"ftp://{_host}:{_port}/{path}");
-    }
-
-    private FtpWebRequest CreateFtpRequest(Uri ftpUri, string method)
-    {
-        var request = (FtpWebRequest)WebRequest.Create(ftpUri);
-        request.Method = method;
-        request.Credentials = new NetworkCredential(_username, _password);
-        request.UseBinary = true;
-        request.KeepAlive = false;
-        return request;
-    }
-
-public override async Task<List<string>> ListFilesAsync(string directoryPath, bool recursive)
-{
-    ValidateInitialization();
-    
-    var files = new List<string>();
-    await ListFilesRecursiveAsync(directoryPath, recursive, files);
-    return files;
-}
-
-private async Task ListFilesRecursiveAsync(string directoryPath, bool recursive, List<string> files)
-{
-    var ftpUri = GetFtpUri(directoryPath);
-    var request = CreateFtpRequest(ftpUri, WebRequestMethods.Ftp.ListDirectoryDetails);
-
-    using var response = (FtpWebResponse)await request.GetResponseAsync();
-    using var stream = response.GetResponseStream();
-    using var reader = new StreamReader(stream);
-
-    while (!reader.EndOfStream)
-    {
-        var line = await reader.ReadLineAsync();
-        if (string.IsNullOrWhiteSpace(line))
-            continue;
-
-        var fileName = ParseFtpListLine(line);
-        if (!string.IsNullOrEmpty(fileName) && fileName != "." && fileName != "..")
+        await _clientLock.WaitAsync();
+        try
         {
-            var fullPath = string.IsNullOrEmpty(directoryPath) 
-                ? fileName 
-                : $"{directoryPath}/{fileName}";
-
-            if (!line.StartsWith("d"))
+            if (_client == null || !_client.IsConnected)
             {
-                files.Add(fullPath);
+                _client?.Dispose();
+                _client = new AsyncFtpClient(_host, _username, _password, _port);
+                await _client.Connect();
             }
-            else if (recursive)
-            {
-                await ListFilesRecursiveAsync(fullPath, true, files);
-            }
+            return _client;
+        }
+        finally
+        {
+            _clientLock.Release();
         }
     }
-}
 
-private string ParseFtpListLine(string line)
-{
-    var parts = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-    return parts.Length > 0 ? parts[^1] : string.Empty;
-}
+    private string NormalizePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return "/";
+        
+        path = path.Replace("\\", "/");
+        if (!path.StartsWith("/"))
+            path = "/" + path;
+        
+        return path;
+    }
 
+    private string GetDirectoryPath(string filePath)
+    {
+        var directory = Path.GetDirectoryName(filePath);
+        return string.IsNullOrEmpty(directory) ? "/" : directory.Replace("\\", "/");
+    }
 
     #endregion
 }

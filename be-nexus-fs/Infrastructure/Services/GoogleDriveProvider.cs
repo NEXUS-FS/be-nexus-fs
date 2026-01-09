@@ -13,6 +13,7 @@ using System.Linq;
 using System.Threading;
 using System.IO;
 using System.Text;
+using Domain.Models;
 using DriveFile = Google.Apis.Drive.v3.Data.File;
 
 namespace Infrastructure.Services
@@ -197,6 +198,176 @@ namespace Infrastructure.Services
             catch
             {
                 return false;
+            }
+        }
+
+        public override async Task<FileMetadata> StatAsync(string path)
+        {
+            EnsureReady();
+            var normalized = NormalizePath(path);
+            
+            var metadata = new FileMetadata
+            {
+                Path = path,
+                Name = Path.GetFileName(path) ?? path,
+                Exists = false
+            };
+
+            var fileId = await ResolvePathToIdAsync(path, isFile: false, createMissingFolders: false);
+            if (fileId == null)
+            {
+                return metadata;
+            }
+
+            try
+            {
+                var file = await ExecuteWithRetry(() => _client!.GetFileMetadataAsync(fileId));
+                if (file != null)
+                {
+                    metadata.Exists = true;
+                    metadata.IsDirectory = file.MimeType == FolderMimeType;
+                    metadata.Size = file.Size ?? 0;
+                    metadata.ContentType = file.MimeType;
+                    metadata.Created = file.CreatedTime;
+                    metadata.Modified = file.ModifiedTime;
+                }
+            }
+            catch
+            {
+                metadata.Exists = false;
+            }
+
+            return metadata;
+        }
+
+        public override async Task MkdirAsync(string path, bool recursive = true)
+        {
+            EnsureReady();
+            var normalized = NormalizePath(path);
+            var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            
+            if (segments.Length == 0)
+            {
+                return; // Root already exists
+            }
+
+            var parentPath = string.Join('/', segments.Take(segments.Length - 1));
+            var folderName = segments.Last();
+            
+            var parentId = recursive 
+                ? await ResolvePathToIdAsync(parentPath, isFile: false, createMissingFolders: true)
+                : await ResolvePathToIdAsync(parentPath, isFile: false, createMissingFolders: false);
+
+            if (parentId == null)
+            {
+                throw new DirectoryNotFoundException($"Parent directory not found: {parentPath}");
+            }
+
+            await ExecuteWithRetry(() => _client!.CreateFolderAsync(parentId, folderName));
+        }
+
+        public override async Task CopyAsync(string sourcePath, string destinationPath)
+        {
+            EnsureReady();
+            
+            var sourceId = await ResolvePathToIdAsync(sourcePath, isFile: true, createMissingFolders: false);
+            if (sourceId == null)
+            {
+                throw new FileNotFoundException($"Source file not found: {sourcePath}");
+            }
+
+            var destSegments = NormalizePath(destinationPath).Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var destFileName = destSegments.Last();
+            var destParentPath = string.Join('/', destSegments.Take(destSegments.Length - 1));
+            
+            var destParentId = await ResolvePathToIdAsync(destParentPath, isFile: false, createMissingFolders: true)
+                ?? _rootFolderId;
+
+            // Download source content
+            using var stream = await ExecuteWithRetry(() => _client!.DownloadFileAsync(sourceId));
+            var memStream = new MemoryStream();
+            await stream.CopyToAsync(memStream);
+            memStream.Position = 0;
+
+            // Upload to destination
+            await ExecuteWithRetry(() => _client!.UploadFileAsync(destParentId, destFileName, memStream));
+        }
+
+        public override async Task MoveAsync(string sourcePath, string destinationPath)
+        {
+            EnsureReady();
+            
+            var sourceId = await ResolvePathToIdAsync(sourcePath, isFile: true, createMissingFolders: false);
+            if (sourceId == null)
+            {
+                throw new FileNotFoundException($"Source file not found: {sourcePath}");
+            }
+
+            var destSegments = NormalizePath(destinationPath).Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var destFileName = destSegments.Last();
+            var destParentPath = string.Join('/', destSegments.Take(destSegments.Length - 1));
+            
+            var destParentId = await ResolvePathToIdAsync(destParentPath, isFile: false, createMissingFolders: true)
+                ?? _rootFolderId;
+
+            // Google Drive move requires updating parent and name
+            await ExecuteWithRetry(() => _client!.MoveFileAsync(sourceId, destParentId, destFileName));
+        }
+
+        public override async Task<bool> ExistsAsync(string path)
+        {
+            EnsureReady();
+            var fileId = await ResolvePathToIdAsync(path, isFile: false, createMissingFolders: false);
+            return fileId != null;
+        }
+
+        public override async Task<Stream> ReadStreamAsync(string filePath)
+        {
+            EnsureReady();
+            var fileId = await ResolvePathToIdAsync(filePath, isFile: true, createMissingFolders: false);
+            if (fileId == null)
+            {
+                throw new FileNotFoundException($"File not found: {filePath}");
+            }
+
+            return await ExecuteWithRetry(() => _client!.DownloadFileAsync(fileId));
+        }
+
+        public override async Task WriteStreamAsync(string filePath, Stream content)
+        {
+            EnsureReady();
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                throw new ArgumentException("File path cannot be empty.", nameof(filePath));
+            }
+
+            var normalized = NormalizePath(filePath);
+            var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length == 0)
+            {
+                throw new ArgumentException("File path must include a filename.", nameof(filePath));
+            }
+
+            var fileName = segments.Last();
+            var parentPath = string.Join('/', segments.Take(segments.Length - 1));
+            var parentId = await ResolvePathToIdAsync(parentPath, isFile: false, createMissingFolders: true) ?? _rootFolderId;
+
+            var existingFile = await ExecuteWithRetry(() => _client!.FindItemAsync(parentId, fileName, expectedMime: null));
+
+            string? fileId;
+            if (existingFile == null)
+            {
+                fileId = await ExecuteWithRetry(() => _client!.UploadFileAsync(parentId, fileName, content));
+            }
+            else
+            {
+                fileId = await ExecuteWithRetry(() => _client!.UpdateFileAsync(existingFile.Id, content));
+            }
+
+            if (!string.IsNullOrWhiteSpace(fileId))
+            {
+                var fullPath = string.IsNullOrWhiteSpace(parentPath) ? fileName : $"{parentPath}/{fileName}";
+                _pathCache.Set(fullPath, fileId, _pathCacheTtl);
             }
         }
 
@@ -397,6 +568,8 @@ namespace Infrastructure.Services
         Task<Stream> DownloadFileAsync(string fileId);
         Task DeleteAsync(string fileId);
         Task<IList<DriveFile>> ListChildrenAsync(string parentId);
+        Task<DriveFile?> GetFileMetadataAsync(string fileId);
+        Task MoveFileAsync(string fileId, string newParentId, string newName);
     }
 
     internal class GoogleDriveApiClient : IGoogleDriveClient
@@ -491,6 +664,36 @@ namespace Infrastructure.Services
             request.Spaces = "drive";
             var response = await request.ExecuteAsync();
             return response.Files ?? new List<DriveFile>();
+        }
+
+        public async Task<DriveFile?> GetFileMetadataAsync(string fileId)
+        {
+            var request = _service.Files.Get(fileId);
+            request.Fields = "id, name, mimeType, size, createdTime, modifiedTime";
+            return await request.ExecuteAsync();
+        }
+
+        public async Task MoveFileAsync(string fileId, string newParentId, string newName)
+        {
+            // Get current parents
+            var getRequest = _service.Files.Get(fileId);
+            getRequest.Fields = "parents";
+            var file = await getRequest.ExecuteAsync();
+            
+            var previousParents = file.Parents != null ? string.Join(",", file.Parents) : "";
+
+            // Update file with new parent and name
+            var updateMetadata = new DriveFile
+            {
+                Name = newName
+            };
+            
+            var updateRequest = _service.Files.Update(updateMetadata, fileId);
+            updateRequest.AddParents = newParentId;
+            updateRequest.RemoveParents = previousParents;
+            updateRequest.Fields = "id, parents";
+            
+            await updateRequest.ExecuteAsync();
         }
 
         private static string Escape(string input) => input.Replace("'", "\\'");

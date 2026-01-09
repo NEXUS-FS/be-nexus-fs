@@ -162,9 +162,8 @@ namespace Infrastructure.Services
             return await Task.FromResult(_providers.Values.ToList());
         }
 
-        //Obserever pattern methods
-
-
+        //Observer pattern methods
+        
         private async Task NotifyObservers(Func<IProviderObserver, Task> action)
         {
             foreach (var observer in _observers)
@@ -180,11 +179,19 @@ namespace Infrastructure.Services
                 }
             }
         }
+        
         public void RegisterObserver(IProviderObserver observer)
-        { if (observer != null) _observers.Add(observer); }
+        {
+            if (observer == null)
+                throw new ArgumentNullException(nameof(observer));
+            
+            _observers.Add(observer);
+        }
 
         public void RemoveObserver(IProviderObserver observer)
-        { if (observer != null) _observers.Remove(observer); }
+        {
+            _observers.Remove(observer);
+        }
 
         public async Task NotifyProvidersRegistered(string pid, string ptype)
         {
@@ -194,6 +201,111 @@ namespace Infrastructure.Services
         public async Task NotifyProviderRemoved(string pid)
         {
             await NotifyObservers(o => o.OnProviderRemoved(pid));
+        }
+
+        /// <summary>
+        /// Creates and tests a provider with the given configuration without registering it.
+        /// Used for credential validation.
+        /// </summary>
+        public async Task<(bool Success, string Message)> CreateAndTestProvider(
+            string providerType,
+            string providerId,
+            Dictionary<string, string> configuration)
+        {
+            try
+            {
+                // Validate provider type
+                if (!_providerFactory.IsProviderTypeSupported(providerType))
+                {
+                    return (false, $"Provider type '{providerType}' is not supported");
+                }
+
+                // Create provider instance
+                var provider = await _providerFactory.CreateProviderAsync(
+                    providerType,
+                    providerId,
+                    configuration,
+                    _logger);
+
+                // Test connection
+                var connectionResult = await provider.TestConnectionAsync();
+
+                if (connectionResult)
+                {
+                    return (true, "Provider credentials are valid");
+                }
+                else
+                {
+                    return (false, "Provider connection test failed");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error testing provider credentials: {ex.Message}");
+                return (false, $"Error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Reloads a provider from the database with updated configuration.
+        /// Used after credential rotation.
+        /// </summary>
+        public async Task ReloadProvider(string providerId)
+        {
+            try
+            {
+                _logger.LogInformation($"Reloading provider: {providerId}");
+
+                using (var scope = _scopeFactory.CreateScope())
+                {
+                    var repository = scope.ServiceProvider.GetRequiredService<IProviderRepository>();
+                    var entity = await repository.GetByIdAsync(providerId);
+
+                    if (entity == null)
+                    {
+                        throw new KeyNotFoundException($"Provider '{providerId}' not found in database");
+                    }
+
+                    if (!entity.IsActive)
+                    {
+                        throw new InvalidOperationException($"Provider '{providerId}' is not active");
+                    }
+
+                    // Parse configuration
+                    var config = !string.IsNullOrWhiteSpace(entity.Configuration)
+                        ? JsonSerializer.Deserialize<Dictionary<string, string>>(entity.Configuration) ??
+                          new Dictionary<string, string>()
+                        : new Dictionary<string, string>();
+
+                    // Create new provider instance with updated configuration
+                    var provider = await _providerFactory.CreateProviderAsync(
+                        entity.Type,
+                        entity.Id,
+                        config,
+                        _logger);
+
+                    // Replace the provider in memory
+                    if (_providers.ContainsKey(providerId))
+                    {
+                        _providers[providerId] = provider;
+                        _logger.LogInformation($"Provider reloaded successfully: {providerId}");
+                    }
+                    else
+                    {
+                        // Provider wasn't in memory, add it
+                        _providers.Add(providerId, provider);
+                        _logger.LogInformation($"Provider loaded into memory: {providerId}");
+                    }
+
+                    // Notify observers
+                    await NotifyProvidersRegistered(providerId, provider.ProviderType);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Failed to reload provider '{providerId}': {ex.Message}");
+                throw;
+            }
         }
     }
 }

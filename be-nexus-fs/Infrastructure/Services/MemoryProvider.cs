@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Domain.Models;
 
 namespace Infrastructure.Services
 {
@@ -109,6 +110,102 @@ namespace Infrastructure.Services
         {
             // In-memory is always connected
             return await Task.FromResult(true);
+        }
+
+        public override async Task<FileMetadata> StatAsync(string path)
+        {
+            var key = NormalizePath(path);
+            var exists = _storage.ContainsKey(key);
+
+            var metadata = new FileMetadata
+            {
+                Path = path,
+                Name = Path.GetFileName(path) ?? path,
+                Exists = exists,
+                IsDirectory = false
+            };
+
+            if (exists && _storage.TryGetValue(key, out var data))
+            {
+                metadata.Size = data.Length;
+                metadata.ContentType = "application/octet-stream";
+                metadata.Created = DateTime.UtcNow; // In-memory doesn't track creation time
+                metadata.Modified = DateTime.UtcNow;
+            }
+
+            return await Task.FromResult(metadata);
+        }
+
+        public override async Task MkdirAsync(string path, bool recursive = true)
+        {
+            // In-memory provider doesn't have actual directories
+            // This is a no-op for compatibility
+            await Task.CompletedTask;
+        }
+
+        public override async Task CopyAsync(string sourcePath, string destinationPath)
+        {
+            var sourceKey = NormalizePath(sourcePath);
+            var destKey = NormalizePath(destinationPath);
+
+            if (!_storage.TryGetValue(sourceKey, out var data))
+            {
+                throw new System.IO.FileNotFoundException($"Source file not found: {sourcePath}");
+            }
+
+            // Create a copy of the data
+            var dataCopy = new byte[data.Length];
+            Array.Copy(data, dataCopy, data.Length);
+            
+            _storage.AddOrUpdate(destKey, dataCopy, (k, oldValue) => dataCopy);
+            await Task.CompletedTask;
+        }
+
+        public override async Task MoveAsync(string sourcePath, string destinationPath)
+        {
+            var sourceKey = NormalizePath(sourcePath);
+            var destKey = NormalizePath(destinationPath);
+
+            if (!_storage.TryGetValue(sourceKey, out var data))
+            {
+                throw new System.IO.FileNotFoundException($"Source file not found: {sourcePath}");
+            }
+
+            _storage.AddOrUpdate(destKey, data, (k, oldValue) => data);
+            _storage.TryRemove(sourceKey, out _);
+            
+            await Task.CompletedTask;
+        }
+
+        public override async Task<bool> ExistsAsync(string path)
+        {
+            var key = NormalizePath(path);
+            return await Task.FromResult(_storage.ContainsKey(key));
+        }
+
+        public override async Task<Stream> ReadStreamAsync(string filePath)
+        {
+            var key = NormalizePath(filePath);
+
+            if (!_storage.TryGetValue(key, out var data))
+            {
+                throw new System.IO.FileNotFoundException($"File not found in memory: {filePath}");
+            }
+
+            // Return a MemoryStream with the data
+            return await Task.FromResult(new MemoryStream(data));
+        }
+
+        public override async Task WriteStreamAsync(string filePath, Stream content)
+        {
+            var key = NormalizePath(filePath);
+            
+            // Read stream into memory
+            using var memStream = new MemoryStream();
+            await content.CopyToAsync(memStream);
+            var data = memStream.ToArray();
+
+            _storage.AddOrUpdate(key, data, (k, oldValue) => data);
         }
 
         /// <summary>

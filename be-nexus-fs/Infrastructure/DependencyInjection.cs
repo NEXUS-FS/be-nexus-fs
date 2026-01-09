@@ -33,6 +33,24 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString, npgsqlOptions => 
                 npgsqlOptions.EnableRetryOnFailure()));
 
+        // Redis Cache
+        var redisConnectionString = Environment.GetEnvironmentVariable("REDIS_CONNECTION_STRING")
+                                   ?? configuration["Redis:ConnectionString"];
+        
+        if (!string.IsNullOrEmpty(redisConnectionString))
+        {
+            services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = redisConnectionString;
+                options.InstanceName = configuration["Redis:InstanceName"] ?? "NexusFS:";
+            });
+        }
+        else
+        {
+            // Fallback to in-memory cache if Redis is not configured
+            services.AddDistributedMemoryCache();
+        }
+
         // Repositories
         services.AddScoped<IPasswordHasher<UserEntity>, PasswordHasher<UserEntity>>();
         services.AddScoped<IProviderRepository, ProviderRepository>();
@@ -47,7 +65,8 @@ public static class DependencyInjection
         // Core Services
         services.AddScoped<ProviderManager>();
         services.AddScoped<ProviderRouter>();
-        services.AddScoped<IFileOperationRepository, FileOperationRepository>();
+        services.AddScoped<UriRouter>();
+        services.AddScoped<IFileOperationRepository, Infrastructure.Repositories.FileOperationRepository>();
 
         // Observability (Scoped)
         services.AddScoped<Logger>();

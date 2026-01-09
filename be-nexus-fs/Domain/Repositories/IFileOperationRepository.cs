@@ -1,3 +1,5 @@
+using Domain.Models;
+
 namespace Domain.Repositories
 {
     /// <summary>
@@ -25,6 +27,41 @@ namespace Domain.Repositories
         /// Lists files in a directory on the specified provider.
         /// </summary>
         Task<List<string>> ListFilesAsync(string providerId, string directoryPath, bool recursive);
+
+        /// <summary>
+        /// Gets metadata for a file or directory.
+        /// </summary>
+        Task<FileMetadata> StatAsync(string providerId, string path);
+
+        /// <summary>
+        /// Creates a directory on the specified provider.
+        /// </summary>
+        Task MkdirAsync(string providerId, string path, bool recursive);
+
+        /// <summary>
+        /// Copies a file on the specified provider.
+        /// </summary>
+        Task CopyAsync(string providerId, string sourcePath, string destinationPath);
+
+        /// <summary>
+        /// Moves a file on the specified provider.
+        /// </summary>
+        Task MoveAsync(string providerId, string sourcePath, string destinationPath);
+
+        /// <summary>
+        /// Checks if a file or directory exists on the specified provider.
+        /// </summary>
+        Task<bool> ExistsAsync(string providerId, string path);
+
+        /// <summary>
+        /// Reads a file as a stream for large file handling.
+        /// </summary>
+        Task<Stream> ReadStreamAsync(string providerId, string filePath);
+
+        /// <summary>
+        /// Writes a file from a stream for large file handling.
+        /// </summary>
+        Task WriteStreamAsync(string providerId, string filePath, Stream content);
 
         /// <summary>
         /// Checks if a provider exists and is active.

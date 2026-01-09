@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Domain.Models;
 
 namespace Infrastructure.Services
 {
@@ -110,6 +111,164 @@ namespace Infrastructure.Services
             await Task.CompletedTask;
             if (string.IsNullOrWhiteSpace(_basePath)) return false;
             return Directory.Exists(_basePath);
+        }
+
+        public override async Task<FileMetadata> StatAsync(string path)
+        {
+            EnsureInitialized();
+            var fullPath = GetSecurePath(path);
+
+            var metadata = new FileMetadata
+            {
+                Path = path,
+                Name = Path.GetFileName(fullPath),
+                Exists = File.Exists(fullPath) || Directory.Exists(fullPath)
+            };
+
+            if (!metadata.Exists)
+            {
+                return metadata;
+            }
+
+            if (Directory.Exists(fullPath))
+            {
+                var dirInfo = new DirectoryInfo(fullPath);
+                metadata.IsDirectory = true;
+                metadata.Created = dirInfo.CreationTimeUtc;
+                metadata.Modified = dirInfo.LastWriteTimeUtc;
+                metadata.Size = 0;
+            }
+            else if (File.Exists(fullPath))
+            {
+                var fileInfo = new FileInfo(fullPath);
+                metadata.IsDirectory = false;
+                metadata.Created = fileInfo.CreationTimeUtc;
+                metadata.Modified = fileInfo.LastWriteTimeUtc;
+                metadata.Size = fileInfo.Length;
+                metadata.ContentType = GetContentType(fileInfo.Extension);
+            }
+
+            return await Task.FromResult(metadata);
+        }
+
+        public override async Task MkdirAsync(string path, bool recursive = true)
+        {
+            EnsureInitialized();
+            var fullPath = GetSecurePath(path);
+
+            if (Directory.Exists(fullPath))
+            {
+                return; // Already exists
+            }
+
+            if (recursive)
+            {
+                Directory.CreateDirectory(fullPath);
+            }
+            else
+            {
+                var parentDir = Path.GetDirectoryName(fullPath);
+                if (!string.IsNullOrEmpty(parentDir) && !Directory.Exists(parentDir))
+                {
+                    throw new DirectoryNotFoundException($"Parent directory does not exist: {parentDir}");
+                }
+                Directory.CreateDirectory(fullPath);
+            }
+
+            await Task.CompletedTask;
+        }
+
+        public override async Task CopyAsync(string sourcePath, string destinationPath)
+        {
+            EnsureInitialized();
+            var fullSourcePath = GetSecurePath(sourcePath);
+            var fullDestPath = GetSecurePath(destinationPath);
+
+            if (!File.Exists(fullSourcePath))
+            {
+                throw new FileNotFoundException($"Source file not found: {sourcePath}");
+            }
+
+            var destDirectory = Path.GetDirectoryName(fullDestPath);
+            if (!string.IsNullOrEmpty(destDirectory) && !Directory.Exists(destDirectory))
+            {
+                Directory.CreateDirectory(destDirectory);
+            }
+
+            await Task.Run(() => File.Copy(fullSourcePath, fullDestPath, overwrite: true));
+        }
+
+        public override async Task MoveAsync(string sourcePath, string destinationPath)
+        {
+            EnsureInitialized();
+            var fullSourcePath = GetSecurePath(sourcePath);
+            var fullDestPath = GetSecurePath(destinationPath);
+
+            if (!File.Exists(fullSourcePath))
+            {
+                throw new FileNotFoundException($"Source file not found: {sourcePath}");
+            }
+
+            var destDirectory = Path.GetDirectoryName(fullDestPath);
+            if (!string.IsNullOrEmpty(destDirectory) && !Directory.Exists(destDirectory))
+            {
+                Directory.CreateDirectory(destDirectory);
+            }
+
+            await Task.Run(() => File.Move(fullSourcePath, fullDestPath, overwrite: true));
+        }
+
+        public override async Task<bool> ExistsAsync(string path)
+        {
+            EnsureInitialized();
+            var fullPath = GetSecurePath(path);
+            return await Task.FromResult(File.Exists(fullPath) || Directory.Exists(fullPath));
+        }
+
+        public override async Task<Stream> ReadStreamAsync(string filePath)
+        {
+            EnsureInitialized();
+            var fullPath = GetSecurePath(filePath);
+
+            if (!File.Exists(fullPath))
+                throw new FileNotFoundException($"File not found: {filePath}");
+
+            // Return a FileStream that will be disposed by the caller
+            return await Task.FromResult(new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true));
+        }
+
+        public override async Task WriteStreamAsync(string filePath, Stream content)
+        {
+            EnsureInitialized();
+            var fullPath = GetSecurePath(filePath);
+            
+            var directory = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            using var fileStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true);
+            await content.CopyToAsync(fileStream);
+        }
+
+        private string GetContentType(string extension)
+        {
+            return extension.ToLowerInvariant() switch
+            {
+                ".txt" => "text/plain",
+                ".json" => "application/json",
+                ".xml" => "application/xml",
+                ".html" => "text/html",
+                ".css" => "text/css",
+                ".js" => "application/javascript",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".gif" => "image/gif",
+                ".pdf" => "application/pdf",
+                ".zip" => "application/zip",
+                _ => "application/octet-stream"
+            };
         }
 
       

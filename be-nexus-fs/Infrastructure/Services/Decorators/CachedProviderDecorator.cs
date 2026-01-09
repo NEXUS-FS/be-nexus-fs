@@ -1,6 +1,7 @@
 ﻿
 using Infrastructure.Services.Observability;
 using Microsoft.Extensions.Caching.Memory;
+using Domain.Models;
 
 /// <summary>
 /// Decorator Pattern implementation for caching functionality.
@@ -289,6 +290,57 @@ namespace Infrastructure.Services.Decorators
                 _memoryCache.Remove(cacheKey);
                 throw;
             }
+        }
+
+        public override async Task<FileMetadata> StatAsync(string path)
+        {
+            var cacheKey = GenerateCacheKey("stat", path);
+            if (_memoryCache.TryGetValue(cacheKey, out FileMetadata? cachedMetadata) && cachedMetadata != null)
+            {
+                return cachedMetadata;
+            }
+
+            var metadata = await _decoratedProvider.StatAsync(path);
+            _memoryCache.Set(cacheKey, metadata, TimeSpan.FromMinutes(5));
+            return metadata;
+        }
+
+        public override async Task MkdirAsync(string path, bool recursive)
+        {
+            await _decoratedProvider.MkdirAsync(path, recursive);
+        }
+
+        public override async Task CopyAsync(string source, string destination)
+        {
+            await _decoratedProvider.CopyAsync(source, destination);
+            var cacheKey = GenerateCacheKey("file-content", destination);
+            _memoryCache.Remove(cacheKey);
+        }
+
+        public override async Task MoveAsync(string source, string destination)
+        {
+            await _decoratedProvider.MoveAsync(source, destination);
+            var sourceCacheKey = GenerateCacheKey("file-content", source);
+            var destCacheKey = GenerateCacheKey("file-content", destination);
+            _memoryCache.Remove(sourceCacheKey);
+            _memoryCache.Remove(destCacheKey);
+        }
+
+        public override async Task<bool> ExistsAsync(string path)
+        {
+            return await _decoratedProvider.ExistsAsync(path);
+        }
+
+        public override async Task<Stream> ReadStreamAsync(string filePath)
+        {
+            return await _decoratedProvider.ReadStreamAsync(filePath);
+        }
+
+        public override async Task WriteStreamAsync(string filePath, Stream content)
+        {
+            await _decoratedProvider.WriteStreamAsync(filePath, content);
+            var cacheKey = GenerateCacheKey("file-content", filePath);
+            _memoryCache.Remove(cacheKey);
         }
 
         /// <summary>

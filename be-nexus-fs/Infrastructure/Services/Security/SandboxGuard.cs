@@ -111,7 +111,7 @@ namespace Infrastructure.Services.Security
         }
 
         private bool IsWriteOperation(FileOperation op) 
-            => op is FileOperation.Write or FileOperation.Create or FileOperation.Delete or FileOperation.Move or FileOperation.Copy;
+            => op is FileOperation.Write or FileOperation.Create or FileOperation.Delete or FileOperation.Move or FileOperation.Copy or FileOperation.Mkdir or FileOperation.Rename;
 
         private static string MapOperationToString(FileOperation operation)
         {
@@ -124,6 +124,10 @@ namespace Infrastructure.Services.Security
                 FileOperation.Create => "create",
                 FileOperation.Move => "move",
                 FileOperation.Copy => "copy",
+                FileOperation.Stat => "stat",
+                FileOperation.Mkdir => "mkdir",
+                FileOperation.Rename => "rename",
+                FileOperation.Exists => "exists",
                 _ => throw new ArgumentException($"Unknown operation: {operation}")
             };
         }
