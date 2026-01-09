@@ -1,17 +1,8 @@
-﻿using Infrastructure.Services.Observability;
+using Infrastructure.Services;
+using Infrastructure.Services.Observability;
 
-namespace Infrastructure.Services
+public class ProviderFactory
 {
-    public class ProviderFactory
-    {
-        public ProviderFactory() { }
-
-        public Provider CreateProvider(string providerType, string providerId, Logger? logger = null)
-        {
-            // Validation logic is centralized in InstantiateProvider
-            return InstantiateProvider(providerType, providerId, logger);
-        }
-
         public async Task<Provider> CreateProviderAsync(string providerType, string providerId, Dictionary<string, string> configuration, Logger? logger = null)
         {
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
@@ -47,7 +38,8 @@ namespace Infrastructure.Services
                 "s3" or "aws" => new S3Provider(providerId),
                 "googledrive" or "gdrive" or "google" or "drive" => new GoogleDriveProvider(providerId, driveClient: null, memoryCache: null, logger: logger),
                 "ftp" or "ftps" or "sftp" => new FtpProvider(providerId, logger),
-                _ => throw new NotSupportedException($"Provider type '{providerType}' is not supported.")
+                "memory" => new MemoryProvider(providerId),
+                _ => throw new ArgumentException($"provider type '{providerType}' is not supported.", nameof(providerType))
             };
         }
 
@@ -61,5 +53,4 @@ namespace Infrastructure.Services
             
             return supportedTypes.Contains(providerType.ToLowerInvariant());
         }
-    }
 }
