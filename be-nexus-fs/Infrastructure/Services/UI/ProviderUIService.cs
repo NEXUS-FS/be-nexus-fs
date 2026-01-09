@@ -58,7 +58,7 @@ namespace Infrastructure.Services.UI
 
 
         /// Registers or updates a provider configuration.
-        public async Task<bool> RegisterOrUpdateProviderAsync(ProviderRegistrationRequest request)
+        public Task<bool> RegisterOrUpdateProviderAsync(ProviderRegistrationRequest request)
         {
             // if (request == null)
             //     throw new ArgumentNullException(nameof(request));
@@ -80,7 +80,7 @@ namespace Infrastructure.Services.UI
             // }
             //
             // return true;
-            throw new NotImplementedException("Provider update not implemented yet.");
+            return Task.FromException<bool>(new NotImplementedException("Provider update not implemented yet."));
         }
     }
 }
