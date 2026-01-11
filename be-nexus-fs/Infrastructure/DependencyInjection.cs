@@ -62,17 +62,16 @@ public static class DependencyInjection
         // Factory (Singleton - no dependencies)
         services.AddSingleton<ProviderFactory>();
 
-        // Core Services
-        services.AddScoped<ProviderManager>();
-        services.AddScoped<ProviderRouter>();
-        services.AddScoped<UriRouter>();
-        services.AddScoped<IFileOperationRepository, Infrastructure.Repositories.FileOperationRepository>();
-
-        // Observability (Scoped)
+        // Observability (Scoped - resolved by ProviderManager via scope factory)
         services.AddScoped<Logger>();
         services.AddScoped<MetricsCollector>();
         services.AddScoped<IProviderObserver, MetricsCollector>();
         services.AddScoped<IProviderObserver, Logger>();
+
+        // Core Services
+        services.AddScoped<ProviderRouter>();
+        services.AddScoped<UriRouter>();
+        services.AddScoped<IFileOperationRepository, Infrastructure.Repositories.FileOperationRepository>();
 
         // Security
         services.AddScoped<ACLManager>();

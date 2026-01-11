@@ -5,8 +5,8 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Domain.Entities;
 using Domain.Repositories;
-using Infrastructure.Services.Observability;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Infrastructure.Services
 /// <summary>
@@ -18,33 +18,21 @@ namespace Infrastructure.Services
     public class ProviderManager
     {
         private readonly Dictionary<string, Provider> _providers;
-        private readonly List<IProviderObserver> _observers;
-        private readonly Logger _logger;
+        private readonly ILogger<ProviderManager> _logger;
         private readonly ProviderFactory _providerFactory;
-
-        //can this be done better? we want this as a service at startup
         private readonly IServiceScopeFactory _scopeFactory;
 
         public ProviderManager(
             ProviderFactory providerFactory,
-            Logger logger,
-            IServiceScopeFactory scopeFactory,
-            IEnumerable<IProviderObserver> observers)
+            ILogger<ProviderManager> logger,
+            IServiceScopeFactory scopeFactory)
         {
             _providers = new Dictionary<string, Provider>();
             _providerFactory = providerFactory ?? throw new ArgumentNullException(nameof(providerFactory));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
 
-            //observers list
-            _observers = observers?.ToList() ?? new List<IProviderObserver>();
-
-            _logger.LogInformation($"[System] ProviderManager initialized with {_observers.Count} observers.");
-
-            foreach (var obs in _observers)
-            {
-                _logger.LogInformation($"[System] - Observer Loaded: {obs.GetType().Name}");
-            }
+            _logger.LogInformation("[System] ProviderManager initialized.");
         }
         /// <summary>
         /// Connects to the DB, fetches active providers, and loads them into memory.
@@ -166,31 +154,36 @@ namespace Infrastructure.Services
         
         private async Task NotifyObservers(Func<IProviderObserver, Task> action)
         {
-            foreach (var observer in _observers)
+            // Resolve observers from a scope to avoid lifetime validation errors
+            using (var scope = _scopeFactory.CreateScope())
             {
-                try
+                var observers = scope.ServiceProvider.GetServices<IProviderObserver>();
+                foreach (var observer in observers)
                 {
-                    await action(observer);
-                }
-                catch (Exception ex)
-                {
-                    // Prevent one bad observer from crashing the manager
-                    _logger.LogError($"Observer {observer.GetType().Name} failed: {ex.Message}");
+                    try
+                    {
+                        await action(observer);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Prevent one bad observer from crashing the manager
+                        _logger.LogError($"Observer {observer.GetType().Name} failed: {ex.Message}");
+                    }
                 }
             }
         }
         
         public void RegisterObserver(IProviderObserver observer)
         {
+            // Note: Observers are now resolved from DI scope during notifications
+            // This method is kept for backwards compatibility but is a no-op
             if (observer == null)
                 throw new ArgumentNullException(nameof(observer));
-            
-            _observers.Add(observer);
         }
 
         public void RemoveObserver(IProviderObserver observer)
         {
-            _observers.Remove(observer);
+            // Observers are resolved from DI, removal is a no-op
         }
 
         public async Task NotifyProvidersRegistered(string pid, string ptype)
@@ -224,8 +217,7 @@ namespace Infrastructure.Services
                 var provider = await _providerFactory.CreateProviderAsync(
                     providerType,
                     providerId,
-                    configuration,
-                    _logger);
+                    configuration);
 
                 // Test connection
                 var connectionResult = await provider.TestConnectionAsync();
@@ -281,8 +273,7 @@ namespace Infrastructure.Services
                     var provider = await _providerFactory.CreateProviderAsync(
                         entity.Type,
                         entity.Id,
-                        config,
-                        _logger);
+                        config);
 
                     // Replace the provider in memory
                     if (_providers.ContainsKey(providerId))

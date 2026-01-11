@@ -46,6 +46,7 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddSingleton<Infrastructure.Services.ProviderManager>();
 
 // Health Checks
 var healthChecksBuilder = builder.Services.AddHealthChecks();
