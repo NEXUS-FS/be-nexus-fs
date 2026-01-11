@@ -48,9 +48,35 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
 // Health Checks
-builder.Services.AddHealthChecks()
-    .AddNpgSql(builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection string not configured"))
-    .AddRedis(builder.Configuration.GetSection("Redis:ConnectionString").Get<string>() ?? "localhost:6379");
+var healthChecksBuilder = builder.Services.AddHealthChecks();
+
+// Add PostgreSQL health check - prioritize DATABASE_URL environment variable
+var postgresConnection = Environment.GetEnvironmentVariable("DATABASE_URL") 
+    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+
+if (!string.IsNullOrWhiteSpace(postgresConnection))
+{
+    healthChecksBuilder.AddNpgSql(postgresConnection);
+    Log.Information("PostgreSQL health check configured");
+}
+else
+{
+    Log.Warning("PostgreSQL connection string not configured - health check skipped");
+}
+
+// Add Redis health check - prioritize REDIS_URL environment variable
+var redisConnection = Environment.GetEnvironmentVariable("REDIS_URL") 
+    ?? builder.Configuration.GetSection("Redis:ConnectionString").Get<string>();
+
+if (!string.IsNullOrWhiteSpace(redisConnection))
+{
+    healthChecksBuilder.AddRedis(redisConnection);
+    Log.Information("Redis health check configured with: {RedisConnection}", redisConnection);
+}
+else
+{
+    Log.Warning("Redis connection string not configured - health check skipped");
+}
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
