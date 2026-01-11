@@ -1,6 +1,7 @@
 using Infrastructure.Services;
 using Infrastructure.Services.Decorators;
 using Infrastructure.Services.Observability;
+using Domain.Repositories;
 using Moq;
 using FluentAssertions;
 using Xunit;
@@ -10,14 +11,15 @@ namespace NexusFS.Tests
     public class CircuitBreakerProviderDecoratorTests
     {
         private readonly LocalProvider _provider;
-        private readonly Mock<Logger> _loggerMock;
+        private readonly Logger _logger;
 
         public CircuitBreakerProviderDecoratorTests()
         {
             _provider = new LocalProvider("test-provider");
             var config = new Dictionary<string, string> { { "basePath", Path.GetTempPath() } };
             _provider.Initialize(config).Wait();
-            _loggerMock = new Mock<Logger>();
+            var auditRepo = new Mock<IAuditLogRepository>();
+            _logger = new Logger(auditRepo.Object);
         }
 
         [Fact]
@@ -30,7 +32,7 @@ namespace NexusFS.Tests
 
             var decorator = new CircuitBreakerProviderDecorator(
                 _provider,
-                _loggerMock.Object,
+                _logger,
                 failureThreshold: 3,
                 breakDuration: TimeSpan.FromSeconds(30));
 
@@ -56,7 +58,7 @@ namespace NexusFS.Tests
             // Arrange
             var decorator = new CircuitBreakerProviderDecorator(
                 _provider,
-                _loggerMock.Object,
+                _logger,
                 failureThreshold: 3,
                 breakDuration: TimeSpan.FromSeconds(30));
 
@@ -71,7 +73,7 @@ namespace NexusFS.Tests
             var testFile = Path.Combine(Path.GetTempPath(), "test-write-circuit.txt");
             var decorator = new CircuitBreakerProviderDecorator(
                 _provider,
-                _loggerMock.Object);
+                _logger);
 
             try
             {
@@ -97,7 +99,7 @@ namespace NexusFS.Tests
             // Arrange
             var decorator = new CircuitBreakerProviderDecorator(
                 _provider,
-                _loggerMock.Object);
+                _logger);
 
             // Act
             var result = await decorator.TestConnectionAsync();
@@ -112,7 +114,7 @@ namespace NexusFS.Tests
             // Arrange
             var decorator = new CircuitBreakerProviderDecorator(
                 _provider,
-                _loggerMock.Object);
+                _logger);
 
             // Act
             var result = decorator.DecoratedProvider;
