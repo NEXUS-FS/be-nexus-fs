@@ -84,13 +84,14 @@ namespace be_nexus_fs.Controllers
         /// {
         ///   "providerId": "s3-demo",
         ///   "configuration": {
-        ///     "AccessKey": "YOUR_ACCESS_KEY",
-        ///     "SecretKey": "YOUR_SECRET_KEY",
-        ///     "Bucket": "your-bucket-name",
-        ///     "Region": "us-east-1"
+        ///     "accessKey": "YOUR_ACCESS_KEY",
+        ///     "secretKey": "YOUR_SECRET_KEY",
+        ///     "bucketName": "your-bucket-name",
+        ///     "region": "us-east-1"
         ///   }
         /// }
-        /// Required fields in configuration: AccessKey, SecretKey, Bucket, Region.
+        /// Required fields in configuration: accessKey, secretKey, bucketName, region.
+        /// Optional: serviceUrl (for LocalStack testing).
         /// </remarks>
         [Authorize]
         [HttpPost("s3")]

@@ -108,15 +108,66 @@ namespace Infrastructure.Services
         {
             EnsureInitialized();
 
-            // S3 Delete is idempotent; it returns success even if file doesn't exist.
-            // We accept this behavior to reduce API calls (cost optimization).
-            var request = new DeleteObjectRequest
+            var normalizedPath = NormalizePath(filePath);
+            
+            // If path ends with "/" or looks like a directory (no file extension and path contains no dots),
+            // treat it as a directory and delete all objects with that prefix
+            if (normalizedPath.EndsWith("/"))
+            {
+                // Delete directory (all objects with this prefix)
+                await DeleteDirectoryAsync(normalizedPath);
+                return;
+            }
+
+            // First, delete as a file (S3 delete is idempotent, so this always succeeds)
+            var deleteFileRequest = new DeleteObjectRequest
             {
                 BucketName = _bucketName,
-                Key = NormalizePath(filePath)
+                Key = normalizedPath
             };
 
-            await _s3Client.DeleteObjectAsync(request);
+            await _s3Client.DeleteObjectAsync(deleteFileRequest);
+
+            // Also check if there are objects with this prefix (to handle directory deletion)
+            // This allows deleting "test" to delete all files in "test/" directory
+            var prefixForDirectory = normalizedPath + "/";
+            await DeleteDirectoryAsync(prefixForDirectory);
+        }
+
+        private async Task DeleteDirectoryAsync(string prefix)
+        {
+            // Ensure prefix ends with "/"
+            if (!string.IsNullOrEmpty(prefix) && !prefix.EndsWith("/"))
+            {
+                prefix += "/";
+            }
+
+            var request = new ListObjectsV2Request
+            {
+                BucketName = _bucketName,
+                Prefix = prefix
+            };
+
+            ListObjectsV2Response response;
+            do
+            {
+                response = await _s3Client.ListObjectsV2Async(request);
+                
+                if (response.S3Objects != null && response.S3Objects.Count > 0)
+                {
+                    // Batch delete up to 1000 objects at a time (S3 limit)
+                    var deleteRequest = new DeleteObjectsRequest
+                    {
+                        BucketName = _bucketName,
+                        Objects = response.S3Objects.Select(o => new KeyVersion { Key = o.Key }).ToList(),
+                        Quiet = true
+                    };
+
+                    await _s3Client.DeleteObjectsAsync(deleteRequest);
+                }
+
+                request.ContinuationToken = response.NextContinuationToken;
+            } while (response.IsTruncated == true);
         }
 
   public override async Task<List<string>> ListFilesAsync(string directoryPath, bool recursive)
@@ -149,9 +200,12 @@ namespace Infrastructure.Services
         {
             response = await _s3Client.ListObjectsV2Async(request);
             
-            results.AddRange(response.S3Objects.Select(o => o.Key));
+            if (response.S3Objects != null)
+            {
+                results.AddRange(response.S3Objects.Select(o => o.Key));
+            }
 
-            if (!recursive)
+            if (!recursive && response.CommonPrefixes != null)
             {
                 results.AddRange(response.CommonPrefixes);
             }
