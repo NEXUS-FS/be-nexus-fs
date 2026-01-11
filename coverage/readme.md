@@ -21,17 +21,17 @@ dotnet restore be-nexus-fs/be-nexus-fs.sln
 #    - Prints a coverage summary to the terminal
 #    - Writes Cobertura XML to ./coverage/coverage.cobertura.xml
 #    - Excludes test project files from coverage via ExcludeByFile
-dotnet test be-nexus-fs/be-nexus-fs.sln \
+dotnet test \
   --verbosity normal \
   /p:CollectCoverage=true \
-  /p:CoverletOutput=./coverage/ \
+  /p:CoverletOutput=../coverage/ \
   /p:CoverletOutputFormat=cobertura \
   /p:ExcludeByFile="**/NexusFS.Tests/**/*.cs"
 
 # 4) Generate an HTML report and a text summary using ReportGenerator
 dotnet tool run reportgenerator \
-  -reports:"coverage/coverage.cobertura.xml" \
-  -targetdir:"coverage/html" \
+  -reports:"../coverage/coverage.cobertura.xml" \
+  -targetdir:"../coverage/html" \
   -reporttypes:"Html;TextSummary"
 
 echo "\nCoverage XML: coverage/coverage.cobertura.xml"
