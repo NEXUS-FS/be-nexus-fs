@@ -1,0 +1,202 @@
+Summary
+  Generated on: 1/11/2026 - 8:14:44 PM
+  Coverage date: 1/11/2026 - 8:14:39 PM
+  Parser: Cobertura
+  Assemblies: 4
+  Classes: 174
+  Files: 144
+  Line coverage: 33.1%
+  Covered lines: 2411
+  Uncovered lines: 4866
+  Coverable lines: 7277
+  Total lines: 13528
+  Branch coverage: 26.8% (423 of 1573)
+  Covered branches: 423
+  Total branches: 1573
+  Method coverage: 45% (405 of 899)
+  Full method coverage: 38.8% (349 of 899)
+  Covered methods: 405
+  Fully covered methods: 349
+  Total methods: 899
+
+Application                                                                          73.5%
+  Application.Common.Settings.JwtSettings                                             100%
+  Application.DependencyInjection                                                       0%
+  Application.DTOs.Auth.ChangeRoleRequest                                               0%
+  Application.DTOs.Auth.GoogleAuthRequest                                               0%
+  Application.DTOs.Auth.LoginRequest                                                  100%
+  Application.DTOs.Auth.LoginResponse                                                 100%
+  Application.DTOs.Auth.RefreshTokenRequest                                             0%
+  Application.DTOs.Auth.RegisterRequest                                                 0%
+  Application.DTOs.Auth.UpdateUserRequest                                               0%
+  Application.DTOs.Auth.UserResponse                                                    0%
+  Application.DTOs.Common.PagedResponse<T>                                           57.1%
+  Application.DTOs.FileOperationRequest                                                 0%
+  Application.DTOs.FileOperationResponse                                              100%
+  Application.DTOs.FileOperations.CopyFileRequest                                       0%
+  Application.DTOs.FileOperations.CopyFileResponse                                      0%
+  Application.DTOs.FileOperations.DeleteFileRequest                                   100%
+  Application.DTOs.FileOperations.ExistsRequest                                       100%
+  Application.DTOs.FileOperations.ExistsResponse                                      100%
+  Application.DTOs.FileOperations.ListFilesRequest                                    100%
+  Application.DTOs.FileOperations.ListFilesResponse                                     0%
+  Application.DTOs.FileOperations.MkdirRequest                                        100%
+  Application.DTOs.FileOperations.MkdirResponse                                       100%
+  Application.DTOs.FileOperations.MoveFileRequest                                       0%
+  Application.DTOs.FileOperations.MoveFileResponse                                      0%
+  Application.DTOs.FileOperations.ReadFileRequest                                     100%
+  Application.DTOs.FileOperations.StatFileRequest                                     100%
+  Application.DTOs.FileOperations.StatFileResponse                                    100%
+  Application.DTOs.FileOperations.Validators.DeleteFileRequestValidator               100%
+  Application.DTOs.FileOperations.Validators.ListFilesRequestValidator                100%
+  Application.DTOs.FileOperations.Validators.ReadFileRequestValidator                 100%
+  Application.DTOs.FileOperations.Validators.WriteFileRequestValidator                100%
+  Application.DTOs.FileOperations.WriteFileRequest                                    100%
+  Application.DTOs.LogEntry                                                           100%
+  Application.DTOs.MetricsData                                                          0%
+  Application.DTOs.ProviderRegistrationRequest                                          0%
+  Application.DTOs.User.CreateUserDto                                                 100%
+  Application.DTOs.User.UpdateUserDto                                                 100%
+  Application.DTOs.User.UserDto                                                       100%
+  Application.DTOs.UserPermissionsDto                                                   0%
+  Application.UseCases.AuditLogs.Queries.GetAuditLogs.GetAuditLogsHandler               0%
+  Application.UseCases.AuditLogs.Queries.GetAuditLogs.GetAuditLogsQuery                 0%
+  Application.UseCases.FileOperations.Commands.CopyFileCommand                          0%
+  Application.UseCases.FileOperations.Commands.DeleteFileCommand                      100%
+  Application.UseCases.FileOperations.Commands.DeleteFileCommandResponse              100%
+  Application.UseCases.FileOperations.Commands.ExistsCommand                          100%
+  Application.UseCases.FileOperations.Commands.ListFilesCommand                       100%
+  Application.UseCases.FileOperations.Commands.ListFilesCommandResponse               100%
+  Application.UseCases.FileOperations.Commands.MkdirCommand                           100%
+  Application.UseCases.FileOperations.Commands.MoveFileCommand                          0%
+  Application.UseCases.FileOperations.Commands.ReadFileCommand                        100%
+  Application.UseCases.FileOperations.Commands.ReadFileCommandResponse                100%
+  Application.UseCases.FileOperations.Commands.StatFileCommand                        100%
+  Application.UseCases.FileOperations.Commands.WriteFileCommand                       100%
+  Application.UseCases.FileOperations.Commands.WriteFileCommandResponse               100%
+  Application.UseCases.FileOperations.CommandsHandler.CopyFileHandler                15.9%
+  Application.UseCases.FileOperations.CommandsHandler.DeleteFileHandler               100%
+  Application.UseCases.FileOperations.CommandsHandler.ExistsHandler                    80%
+  Application.UseCases.FileOperations.CommandsHandler.ListFilesHandler                100%
+  Application.UseCases.FileOperations.CommandsHandler.MkdirHandler                   79.4%
+  Application.UseCases.FileOperations.CommandsHandler.MoveFileHandler                15.9%
+  Application.UseCases.FileOperations.CommandsHandler.ReadFileHandler                 100%
+  Application.UseCases.FileOperations.CommandsHandler.StatFileHandler                64.7%
+  Application.UseCases.FileOperations.CommandsHandler.WriteFileHandler                100%
+  Application.UseCases.Users.Commands.CreateUserCommand                               100%
+  Application.UseCases.Users.Commands.DeleteUserCommand                               100%
+  Application.UseCases.Users.Commands.LoginUserCommand                                100%
+  Application.UseCases.Users.Commands.UpdateUserCommand                               100%
+  Application.UseCases.Users.CommandsHandler.CreateUserHandler                        100%
+  Application.UseCases.Users.CommandsHandler.DeleteUserHandler                        100%
+  Application.UseCases.Users.CommandsHandler.UpdateUserHandler                        100%
+  Application.UseCases.Users.Queries.GetAllUsersHandler                               100%
+  Application.UseCases.Users.Queries.GetAllUsersQuery                                 100%
+  Application.UseCases.Users.Queries.GetUserByEmailHandler                            100%
+  Application.UseCases.Users.Queries.GetUserByEmailQuery                              100%
+  Application.UseCases.Users.Queries.GetUserByIdHandler                               100%
+  Application.UseCases.Users.Queries.GetUserByIdQuery                                 100%
+  Application.UseCases.Users.Queries.GetUserByUsernameHandler                         100%
+  Application.UseCases.Users.Queries.GetUserByUsernameQuery                           100%
+  Application.Utils.ConfigManager                                                    93.3%
+  Application.Utils.ErrorHandler                                                      100%
+  Application.Utils.PasswordHelper                                                   41.6%
+  AutoGeneratedProgram                                                                  0%
+  LoginUserHandler                                                                    100%
+
+be-nexus-fs                                                                           9.1%
+  AutoGeneratedProgram                                                                  0%
+  be_nexus_fs.Controllers.CredentialHistoryResponse                                     0%
+  be_nexus_fs.Controllers.CredentialRotationController                                  0%
+  be_nexus_fs.Controllers.CredentialRotationRecord                                      0%
+  be_nexus_fs.Controllers.FileOperationsController                                   19.8%
+  be_nexus_fs.Controllers.McpController                                                 0%
+  be_nexus_fs.Controllers.McpCopyRequest                                                0%
+  be_nexus_fs.Controllers.McpCopyResponse                                               0%
+  be_nexus_fs.Controllers.McpDeleteFileRequest                                          0%
+  be_nexus_fs.Controllers.McpDeleteFileResponse                                         0%
+  be_nexus_fs.Controllers.McpExistsRequest                                              0%
+  be_nexus_fs.Controllers.McpExistsResponse                                             0%
+  be_nexus_fs.Controllers.McpListDirectoryRequest                                       0%
+  be_nexus_fs.Controllers.McpListDirectoryResponse                                      0%
+  be_nexus_fs.Controllers.McpMoveRequest                                                0%
+  be_nexus_fs.Controllers.McpMoveResponse                                               0%
+  be_nexus_fs.Controllers.McpReadFileRequest                                            0%
+  be_nexus_fs.Controllers.McpReadFileResponse                                           0%
+  be_nexus_fs.Controllers.McpWriteFileRequest                                           0%
+  be_nexus_fs.Controllers.McpWriteFileResponse                                          0%
+  be_nexus_fs.Controllers.ProviderController                                            0%
+  be_nexus_fs.Controllers.RotateCredentialsRequest                                      0%
+  be_nexus_fs.Controllers.RotateCredentialsResponse                                     0%
+  be_nexus_fs.Controllers.TestCredentialsRequest                                        0%
+  be_nexus_fs.Controllers.TestCredentialsResponse                                       0%
+  be_nexus_fs.Controllers.UsersController                                            21.8%
+  Program                                                                               0%
+  WeatherForecast                                                                       0%
+
+Domain                                                                               90.2%
+  AutoGeneratedProgram                                                                  0%
+  Domain.Entities.AccessControlEntity                                                   0%
+  Domain.Entities.AuditLogEntity                                                      100%
+  Domain.Entities.FileShareEntity                                                     100%
+  Domain.Entities.MetricEntity                                                          0%
+  Domain.Entities.PermissionEntity                                                      0%
+  Domain.Entities.ProviderEntity                                                      100%
+  Domain.Entities.SandboxPolicy                                                       100%
+  Domain.Entities.UserEntity                                                          100%
+  Domain.Models.FileMetadata                                                         88.8%
+  Domain.Models.ProviderCapabilities                                                   98%
+
+Infrastructure                                                                       27.6%
+  AutoGeneratedProgram                                                                  0%
+  Infrastructure.Cache.Hashing.FNV1a                                                  100%
+  Infrastructure.Cache.Hashing.FNV1a32                                                100%
+  Infrastructure.Cache.Hashing.FNV1a64                                                100%
+  Infrastructure.DependencyInjection                                                   93%
+  Infrastructure.Migrations.InitialCreate                                               0%
+  Infrastructure.Migrations.NexusFSDbContextModelSnapshot                               0%
+  Infrastructure.Persistence.DatabaseSeeder                                           100%
+  Infrastructure.Persistence.EntityConfigurations.AccessControlEntityConfiguration    100%
+  Infrastructure.Persistence.EntityConfigurations.AuditLogEntityConfiguration         100%
+  Infrastructure.Persistence.EntityConfigurations.MetricEntityConfiguration           100%
+  Infrastructure.Persistence.EntityConfigurations.PermissionEntityConfiguration       100%
+  Infrastructure.Persistence.EntityConfigurations.ProviderEntityConfiguration         100%
+  Infrastructure.Persistence.EntityConfigurations.UserEntityConfiguration             100%
+  Infrastructure.Persistence.NexusFSDbContext                                        94.7%
+  Infrastructure.Repositories.AccessControlRepository                                  45%
+  Infrastructure.Repositories.AuditLogRepository                                       37%
+  Infrastructure.Repositories.FileOperationRepository                                45.7%
+  Infrastructure.Repositories.MetricRepository                                       13.7%
+  Infrastructure.Repositories.ProviderRepository                                     48.5%
+  Infrastructure.Repositories.SandboxPolicyRepository                                 100%
+  Infrastructure.Repositories.UserRepository                                         37.5%
+  Infrastructure.Services.Decorators.CachedProviderDecorator                            0%
+  Infrastructure.Services.Decorators.CircuitBreakerProviderDecorator                 36.5%
+  Infrastructure.Services.Decorators.RedisProviderDecorator                             0%
+  Infrastructure.Services.FileOperations.FileOperationRepository                        0%
+  Infrastructure.Services.FtpProvider                                                   0%
+  Infrastructure.Services.GoogleDriveApiClient                                          0%
+  Infrastructure.Services.GoogleDriveProvider                                        40.5%
+  Infrastructure.Services.LocalProvider                                                38%
+  Infrastructure.Services.MemoryProvider                                             73.9%
+  Infrastructure.Services.NexusApi                                                      0%
+  Infrastructure.Services.Observability.Logger                                       79.3%
+  Infrastructure.Services.Observability.MetricsCollector                              6.3%
+  Infrastructure.Services.Provider                                                     75%
+  Infrastructure.Services.ProviderFactory                                            68.4%
+  Infrastructure.Services.ProviderManager                                            80.3%
+  Infrastructure.Services.ProviderRouter                                             40.4%
+  Infrastructure.Services.S3Provider                                                    0%
+  Infrastructure.Services.Security.ACLManager                                         7.5%
+  Infrastructure.Services.Security.AuthManager                                       14.3%
+  Infrastructure.Services.Security.BasicAuthStrategy                                 11.1%
+  Infrastructure.Services.Security.GoogleOAuthStrategy                               11.1%
+  Infrastructure.Services.Security.IamStrategy                                          0%
+  Infrastructure.Services.Security.JwtTokenService                                   95.7%
+  Infrastructure.Services.Security.MCPServerProxy                                       0%
+  Infrastructure.Services.Security.OAuthStrategy                                        0%
+  Infrastructure.Services.Security.SandboxGuard                                      82.4%
+  Infrastructure.Services.UI.ACLUIService                                               0%
+  Infrastructure.Services.UI.ProviderUIService                                       30.4%
+  Infrastructure.Services.UriRouter                                                   4.1%
+  Infrastructure.Services.WebDAVProvider                                                0%

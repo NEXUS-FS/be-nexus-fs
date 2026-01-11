@@ -19,19 +19,28 @@ dotnet restore be-nexus-fs/be-nexus-fs.sln
 
 # 3) Run tests with coverage (Coverlet via MSBuild)
 #    - Prints a coverage summary to the terminal
-#    - Writes Cobertura XML to ./coverage/coverage.cobertura.xml
-#    - Excludes test project files from coverage via ExcludeByFile
+#    - Writes Cobertura XML to be-nexus-fs/coverage/coverage.cobertura.xml
+#      (the path is relative to each project under be-nexus-fs/)
+#    - Excludes test files and hard-to-test external providers via ExcludeByFile
 dotnet test \
   --verbosity normal \
   /p:CollectCoverage=true \
   /p:CoverletOutput=../coverage/ \
   /p:CoverletOutputFormat=cobertura \
-  /p:ExcludeByFile="**/NexusFS.Tests/**/*.cs"
+  /p:ExcludeByFile="**/NexusFS.Tests/**/*.cs;**/Infrastructure/Services/GoogleDriveApiClient.cs;**/Infrastructure/Services/NexusApi.cs;**/Infrastructure/Services/S3Provider.cs;**/Infrastructure/Services/FtpProvider.cs;**/Infrastructure/Services/WebDAVProvider.cs;**/Infrastructure/Services/Decorators/RedisProviderDecorator.cs;**/Infrastructure/Services/Security/MCPServerProxy.cs"
 
-# 4) Generate an HTML report and a text summary using ReportGenerator
+# 4) Generate a text summary (fast) or HTML report using ReportGenerator
+#    NOTE: use the file produced under be-nexus-fs/coverage/ (not repo-root/coverage/)
+#    Text-only:
 dotnet tool run reportgenerator \
-  -reports:"../coverage/coverage.cobertura.xml" \
-  -targetdir:"../coverage/html" \
+  -reports:"be-nexus-fs/coverage/coverage.cobertura.xml" \
+  -targetdir:"be-nexus-fs/coverage/text" \
+  -reporttypes:"TextSummary"
+
+#    HTML (optional):
+dotnet tool run reportgenerator \
+  -reports:"be-nexus-fs/coverage/coverage.cobertura.xml" \
+  -targetdir:"be-nexus-fs/coverage/html" \
   -reporttypes:"Html;TextSummary"
 
 echo "\nCoverage XML: coverage/coverage.cobertura.xml"

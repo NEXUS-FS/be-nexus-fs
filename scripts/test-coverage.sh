@@ -20,7 +20,7 @@ dotnet test "$SOLUTION" \
   /p:CollectCoverage=true \
   /p:CoverletOutput="$OUT_DIR/" \
   /p:CoverletOutputFormat=cobertura \
-  /p:ExcludeByFile='**/NexusFS.Tests/**/*.cs'
+  /p:ExcludeByFile='**/NexusFS.Tests/**/*.cs;**/Infrastructure/Services/GoogleDriveApiClient.cs;**/Infrastructure/Services/NexusApi.cs;**/Infrastructure/Services/S3Provider.cs;**/Infrastructure/Services/FtpProvider.cs;**/Infrastructure/Services/WebDAVProvider.cs;**/Infrastructure/Services/Decorators/RedisProviderDecorator.cs;**/Infrastructure/Services/Security/MCPServerProxy.cs'
 
 coverage_xml="$OUT_DIR/coverage.cobertura.xml"
 # Coverlet prints a summary in the test output; point to the file for convenience
