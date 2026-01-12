@@ -14,13 +14,13 @@ public class ProviderManager
 {
     private readonly Dictionary<string, Provider> _providers;
     private readonly List<IProviderObserver> _observers;
-    private readonly Logger _logger;
+    private readonly Observability.Logger _logger;
     private readonly ProviderFactory _providerFactory;
     private readonly IServiceScopeFactory _scopeFactory;
 
     public ProviderManager(
         ProviderFactory providerFactory,
-        Logger logger,
+        Observability.Logger logger,
         IServiceScopeFactory scopeFactory,
         IEnumerable<IProviderObserver> observers)
     {
