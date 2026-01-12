@@ -1,0 +1,1 @@
+Functioneaza! Singleton + ScopeFactory pe Mac!

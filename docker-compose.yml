@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: nexusfs-postgres
+    environment:
+      POSTGRES_DB: nexusfs
+      POSTGRES_USER: nexusfs
+      POSTGRES_PASSWORD: nexusfs_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexusfs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nexusfs-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: nexusfs-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - nexusfs-network
+
+  # NexusFS API
+  nexusfs-api:
+    build:
+      context: ./be-nexus-fs
+      dockerfile: ../Dockerfile
+    container_name: nexusfs-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DATABASE_URL=Host=postgres;Port=5432;Database=nexusfs;Username=nexusfs;Password=nexusfs_dev_password
+      - REDIS_CONNECTION_STRING=redis:6379
+      - JwtSettings__SecretKey=VERY_SECURE_KEY_1234567890101112_DOCKER
+      - JwtSettings__Issuer=nexusfs
+      - JwtSettings__Audience=nexusfs-client
+    ports:
+      - "5000:8080"
+      - "5001:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - nexusfs-network
+    volumes:
+      - ./be-nexus-fs:/app/source:ro
+      - nexusfs_storage:/app/storage
+
+  # LocalStack (for S3 testing)
+  localstack:
+    image: localstack/localstack:latest
+    container_name: nexusfs-localstack
+    environment:
+      - SERVICES=s3
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    ports:
+      - "4566:4566"
+      - "4571:4571"
+    volumes:
+      - localstack_data:/tmp/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - nexusfs-network
+
+  # FTP Server (for FTP testing)
+  ftpserver:
+    image: delfer/alpine-ftp-server
+    container_name: nexusfs-ftpserver
+    environment:
+      - USERS=nexusfs|nexusfs_ftp_password
+      - ADDRESS=ftpserver
+    ports:
+      - "21:21"
+      - "21000-21010:21000-21010"
+    volumes:
+      - ftp_data:/ftp/nexusfs
+    networks:
+      - nexusfs-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  nexusfs_storage:
+    driver: local
+  localstack_data:
+    driver: local
+  ftp_data:
+    driver: local
+
+networks:
+  nexusfs-network:
+    driver: bridge
+

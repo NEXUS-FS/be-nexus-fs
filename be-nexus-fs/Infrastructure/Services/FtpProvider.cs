@@ -1,10 +1,11 @@
-﻿using FluentFTP;
+using FluentFTP;
 using Infrastructure.Services.Observability;
+using Domain.Models;
 
 namespace Infrastructure.Services;
 
 /// <summary>
-/// FTP storage provider implementation.
+/// FTP storage provider implementation using FluentFTP.
 /// </summary>
 public class FtpProvider : Provider, IAsyncDisposable
 {
@@ -15,7 +16,7 @@ public class FtpProvider : Provider, IAsyncDisposable
     private bool _skipCertificateValidation;
     private FtpEncryptionMode _encryptionMode = FtpEncryptionMode.Auto;
     private AsyncFtpClient? _client;
-    private readonly SemaphoreSlim _clientLock = new SemaphoreSlim(1, 1);
+    private readonly SemaphoreSlim _clientLock = new(1, 1);
     private readonly Logger? _logger;
 
     public FtpProvider(string providerId, string providerType, Dictionary<string, string> configuration) 
@@ -40,6 +41,11 @@ public class FtpProvider : Provider, IAsyncDisposable
         : base(providerId, providerType, configuration)
     {
         _logger = logger;
+    }
+
+    public override ProviderCapabilities GetCapabilities()
+    {
+        return ProviderCapabilities.ForFtp();
     }
 
     /// <summary>
@@ -200,7 +206,7 @@ public class FtpProvider : Provider, IAsyncDisposable
         var normalizedPath = NormalizePath(filePath);
         var client = await EnsureClientAsync();
         
-        // Ensure parent directories exist before uploading (createRemoteDir handles this, but we ensure it works)
+        // Ensure parent directories exist before uploading
         var directoryPath = GetDirectoryPath(normalizedPath);
         if (!string.IsNullOrEmpty(directoryPath) && directoryPath != "/")
         {
@@ -300,6 +306,129 @@ public class FtpProvider : Provider, IAsyncDisposable
         return files;
     }
 
+    public override async Task<FileMetadata> StatAsync(string path)
+    {
+        ValidateInitialization();
+        var normalizedPath = NormalizePath(path);
+        var client = await EnsureClientAsync();
+
+        var metadata = new FileMetadata
+        {
+            Path = path,
+            Name = Path.GetFileName(path) ?? path
+        };
+
+        try
+        {
+            var item = await client.GetObjectInfo(normalizedPath);
+            if (item != null)
+            {
+                metadata.Exists = true;
+                metadata.IsDirectory = item.Type == FtpObjectType.Directory;
+                metadata.Size = item.Size;
+                metadata.Modified = item.Modified;
+                metadata.Created = item.Created;
+            }
+            else
+            {
+                metadata.Exists = false;
+            }
+        }
+        catch
+        {
+            metadata.Exists = false;
+        }
+
+        return metadata;
+    }
+
+    public override async Task MkdirAsync(string path, bool recursive = true)
+    {
+        ValidateInitialization();
+        var normalizedPath = NormalizePath(path);
+        var client = await EnsureClientAsync();
+
+        await client.CreateDirectory(normalizedPath, force: recursive);
+    }
+
+    public override async Task CopyAsync(string sourcePath, string destinationPath)
+    {
+        ValidateInitialization();
+        
+        // FTP doesn't have native copy, so we download and re-upload
+        var sourceNormalized = NormalizePath(sourcePath);
+        var destNormalized = NormalizePath(destinationPath);
+        var client = await EnsureClientAsync();
+
+        using var stream = new MemoryStream();
+        await client.DownloadStream(stream, sourceNormalized);
+        stream.Position = 0;
+        
+        // Ensure destination directory exists
+        var destDir = GetDirectoryPath(destNormalized);
+        if (!string.IsNullOrEmpty(destDir) && destDir != "/")
+        {
+            await client.CreateDirectory(destDir, force: true);
+        }
+        
+        await client.UploadStream(stream, destNormalized, createRemoteDir: true);
+    }
+
+    public override async Task MoveAsync(string sourcePath, string destinationPath)
+    {
+        ValidateInitialization();
+        var sourceNormalized = NormalizePath(sourcePath);
+        var destNormalized = NormalizePath(destinationPath);
+        var client = await EnsureClientAsync();
+
+        // Ensure destination directory exists
+        var destDir = GetDirectoryPath(destNormalized);
+        if (!string.IsNullOrEmpty(destDir) && destDir != "/")
+        {
+            await client.CreateDirectory(destDir, force: true);
+        }
+
+        await client.MoveFile(sourceNormalized, destNormalized);
+    }
+
+    public override async Task<bool> ExistsAsync(string path)
+    {
+        ValidateInitialization();
+        var normalizedPath = NormalizePath(path);
+        var client = await EnsureClientAsync();
+
+        return await client.FileExists(normalizedPath) || await client.DirectoryExists(normalizedPath);
+    }
+
+    public override async Task<Stream> ReadStreamAsync(string filePath)
+    {
+        ValidateInitialization();
+        var normalizedPath = NormalizePath(filePath);
+        var client = await EnsureClientAsync();
+        
+        // Download to memory stream and return it
+        var stream = new MemoryStream();
+        await client.DownloadStream(stream, normalizedPath);
+        stream.Position = 0;
+        return stream;
+    }
+
+    public override async Task WriteStreamAsync(string filePath, Stream content)
+    {
+        ValidateInitialization();
+        var normalizedPath = NormalizePath(filePath);
+        var client = await EnsureClientAsync();
+        
+        // Ensure destination directory exists
+        var destDir = GetDirectoryPath(normalizedPath);
+        if (!string.IsNullOrEmpty(destDir) && destDir != "/")
+        {
+            await client.CreateDirectory(destDir, force: true);
+        }
+        
+        await client.UploadStream(content, normalizedPath, createRemoteDir: true);
+    }
+
     /// <summary>
     /// Disposes the cached FTP client.
     /// </summary>
@@ -342,6 +471,9 @@ public class FtpProvider : Provider, IAsyncDisposable
         {
             return "/";
         }
+        
+        // Replace backslashes with forward slashes
+        path = path.Replace("\\", "/");
         
         // Ensure path starts with /
         if (!path.StartsWith("/"))

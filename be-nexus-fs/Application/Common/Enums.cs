@@ -12,6 +12,10 @@ namespace Application.Common
         List,
         Create,
         Move,
-        Copy
+        Copy,
+        Stat,        // Get file/directory metadata
+        Mkdir,       // Create directory
+        Rename,      // Rename file or directory
+        Exists       // Check if file/directory exists
     }
 }

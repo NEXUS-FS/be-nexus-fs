@@ -33,6 +33,24 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString, npgsqlOptions => 
                 npgsqlOptions.EnableRetryOnFailure()));
 
+        // Redis Cache
+        var redisConnectionString = Environment.GetEnvironmentVariable("REDIS_CONNECTION_STRING")
+                                   ?? configuration["Redis:ConnectionString"];
+        
+        if (!string.IsNullOrEmpty(redisConnectionString))
+        {
+            services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = redisConnectionString;
+                options.InstanceName = configuration["Redis:InstanceName"] ?? "NexusFS:";
+            });
+        }
+        else
+        {
+            // Fallback to in-memory cache if Redis is not configured
+            services.AddDistributedMemoryCache();
+        }
+
         // Repositories
         services.AddScoped<IPasswordHasher<UserEntity>, PasswordHasher<UserEntity>>();
         services.AddScoped<IProviderRepository, ProviderRepository>();
@@ -45,16 +63,16 @@ public static class DependencyInjection
         // Factory (Singleton - no dependencies)
         services.AddSingleton<ProviderFactory>();
 
-        // Core Services
-        services.AddScoped<ProviderManager>();
-        services.AddScoped<ProviderRouter>();
-        services.AddScoped<IFileOperationRepository, FileOperationRepository>();
-
-        // Observability (Scoped)
+        // Observability (Scoped - resolved by ProviderManager via scope factory)
         services.AddScoped<Logger>();
         services.AddScoped<MetricsCollector>();
         services.AddScoped<IProviderObserver, MetricsCollector>();
         services.AddScoped<IProviderObserver, Logger>();
+
+        // Core Services
+        services.AddScoped<ProviderRouter>();
+        services.AddScoped<UriRouter>();
+        services.AddScoped<IFileOperationRepository, Infrastructure.Repositories.FileOperationRepository>();
 
         // Security
         services.AddScoped<ACLManager>();

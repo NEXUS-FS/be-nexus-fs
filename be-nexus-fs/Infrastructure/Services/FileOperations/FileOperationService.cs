@@ -1,3 +1,4 @@
+using Domain.Models;
 using Domain.Repositories;
 using Infrastructure.Services.Observability;
 using System.Text.Json;
@@ -71,6 +72,83 @@ namespace Infrastructure.Services.FileOperations
         {
             var providerEntity = await _providerRepository.GetByIdAsync(providerId);
             return providerEntity != null && providerEntity.IsActive;
+        }
+
+        public async Task<FileMetadata> StatAsync(string providerId, string path)
+        {
+            var provider = await GetProviderInstanceAsync(providerId);
+            if (provider == null)
+            {
+                throw new KeyNotFoundException($"Provider '{providerId}' not found or inactive");
+            }
+
+            return await provider.StatAsync(path);
+        }
+
+        public async Task MkdirAsync(string providerId, string path, bool recursive)
+        {
+            var provider = await GetProviderInstanceAsync(providerId);
+            if (provider == null)
+            {
+                throw new KeyNotFoundException($"Provider '{providerId}' not found or inactive");
+            }
+
+            await provider.MkdirAsync(path, recursive);
+        }
+
+        public async Task CopyAsync(string providerId, string source, string destination)
+        {
+            var provider = await GetProviderInstanceAsync(providerId);
+            if (provider == null)
+            {
+                throw new KeyNotFoundException($"Provider '{providerId}' not found or inactive");
+            }
+
+            await provider.CopyAsync(source, destination);
+        }
+
+        public async Task MoveAsync(string providerId, string source, string destination)
+        {
+            var provider = await GetProviderInstanceAsync(providerId);
+            if (provider == null)
+            {
+                throw new KeyNotFoundException($"Provider '{providerId}' not found or inactive");
+            }
+
+            await provider.MoveAsync(source, destination);
+        }
+
+        public async Task<bool> ExistsAsync(string providerId, string path)
+        {
+            var provider = await GetProviderInstanceAsync(providerId);
+            if (provider == null)
+            {
+                throw new KeyNotFoundException($"Provider '{providerId}' not found or inactive");
+            }
+
+            return await provider.ExistsAsync(path);
+        }
+
+        public async Task<Stream> ReadStreamAsync(string providerId, string filePath)
+        {
+            var provider = await GetProviderInstanceAsync(providerId);
+            if (provider == null)
+            {
+                throw new KeyNotFoundException($"Provider '{providerId}' not found or inactive");
+            }
+
+            return await provider.ReadStreamAsync(filePath);
+        }
+
+        public async Task WriteStreamAsync(string providerId, string filePath, Stream content)
+        {
+            var provider = await GetProviderInstanceAsync(providerId);
+            if (provider == null)
+            {
+                throw new KeyNotFoundException($"Provider '{providerId}' not found or inactive");
+            }
+
+            await provider.WriteStreamAsync(filePath, content);
         }
 
         private async Task<Provider?> GetProviderInstanceAsync(string providerId)

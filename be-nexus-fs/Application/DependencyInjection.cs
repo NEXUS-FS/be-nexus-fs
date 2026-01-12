@@ -38,6 +38,11 @@ public static class DependencyInjection
         services.AddScoped<WriteFileHandler>();
         services.AddScoped<DeleteFileHandler>();
         services.AddScoped<ListFilesHandler>();
+        services.AddScoped<StatFileHandler>();
+        services.AddScoped<MkdirHandler>();
+        services.AddScoped<CopyFileHandler>();
+        services.AddScoped<MoveFileHandler>();
+        services.AddScoped<ExistsHandler>();
 
         // FluentValidation
         services.AddFluentValidationAutoValidation();

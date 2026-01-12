@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nexusfs-config
+  namespace: nexusfs
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ASPNETCORE_URLS: "http://+:8080"
+  Redis__InstanceName: "NexusFS:"
+  Redis__DefaultExpiration: "00:15:00"
+  JwtSettings__Issuer: "nexusfs"
+  JwtSettings__Audience: "nexusfs-client"
+  JwtSettings__AccessTokenMinutes: "60"
+  JwtSettings__RefreshTokenDays: "7"
+
