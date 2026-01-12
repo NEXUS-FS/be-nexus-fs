@@ -58,6 +58,7 @@ public static class DependencyInjection
         services.AddScoped<IAccessControlRepository, AccessControlRepository>();
         services.AddScoped<IAuditLogRepository, AuditLogRepository>();
         services.AddScoped<IMetricRepository, MetricRepository>();
+        services.AddScoped<ISandboxPolicyRepository, SandboxPolicyRepository>();
 
         // Factory (Singleton - no dependencies)
         services.AddSingleton<ProviderFactory>();
@@ -76,6 +77,9 @@ public static class DependencyInjection
         // Security
         services.AddScoped<ACLManager>();
         services.AddScoped<AuthManager>();
+        services.AddScoped<SandboxGuard>();
+        services.AddScoped<MCPServerProxy>();
+        services.AddScoped<NexusApi>();
 
         // UI Services
         services.AddScoped<ProviderUIService>();

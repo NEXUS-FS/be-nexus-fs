@@ -1,6 +1,6 @@
 using Domain.Models;
 using Domain.Repositories;
-using Infrastructure.Services;
+using Infrastructure.Services.Observability;
 using System.Text.Json;
 
 namespace Infrastructure.Services.FileOperations
@@ -12,13 +12,16 @@ namespace Infrastructure.Services.FileOperations
     {
         private readonly IProviderRepository _providerRepository;
         private readonly ProviderFactory _providerFactory;
+        private readonly Logger? _logger;
 
         public FileOperationRepository(
             IProviderRepository providerRepository,
-            ProviderFactory providerFactory)
+            ProviderFactory providerFactory,
+            Logger? logger = null)
         {
             _providerRepository = providerRepository;
             _providerFactory = providerFactory;
+            _logger = logger;
         }
 
         public async Task<string> ReadFileAsync(string providerId, string filePath)
@@ -164,7 +167,8 @@ namespace Infrastructure.Services.FileOperations
             var provider = await _providerFactory.CreateProviderAsync(
                 providerEntity.Type,
                 providerEntity.Id,
-                configuration);
+                configuration,
+                _logger);
 
             return provider;
         }
