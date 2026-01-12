@@ -10,14 +10,12 @@ namespace NexusFS.Tests
     public class CircuitBreakerProviderDecoratorTests
     {
         private readonly LocalProvider _provider;
-        private readonly Mock<Logger> _loggerMock;
 
         public CircuitBreakerProviderDecoratorTests()
         {
             _provider = new LocalProvider("test-provider");
             var config = new Dictionary<string, string> { { "basePath", Path.GetTempPath() } };
             _provider.Initialize(config).Wait();
-            _loggerMock = new Mock<Logger>();
         }
 
         [Fact]
@@ -30,7 +28,7 @@ namespace NexusFS.Tests
 
             var decorator = new CircuitBreakerProviderDecorator(
                 _provider,
-                _loggerMock.Object,
+                logger: null,
                 failureThreshold: 3,
                 breakDuration: TimeSpan.FromSeconds(30));
 
@@ -56,7 +54,7 @@ namespace NexusFS.Tests
             // Arrange
             var decorator = new CircuitBreakerProviderDecorator(
                 _provider,
-                _loggerMock.Object,
+                logger: null,
                 failureThreshold: 3,
                 breakDuration: TimeSpan.FromSeconds(30));
 
@@ -71,7 +69,7 @@ namespace NexusFS.Tests
             var testFile = Path.Combine(Path.GetTempPath(), "test-write-circuit.txt");
             var decorator = new CircuitBreakerProviderDecorator(
                 _provider,
-                _loggerMock.Object);
+                logger: null);
 
             try
             {
@@ -97,7 +95,7 @@ namespace NexusFS.Tests
             // Arrange
             var decorator = new CircuitBreakerProviderDecorator(
                 _provider,
-                _loggerMock.Object);
+                logger: null);
 
             // Act
             var result = await decorator.TestConnectionAsync();
@@ -112,7 +110,7 @@ namespace NexusFS.Tests
             // Arrange
             var decorator = new CircuitBreakerProviderDecorator(
                 _provider,
-                _loggerMock.Object);
+                logger: null);
 
             // Act
             var result = decorator.DecoratedProvider;

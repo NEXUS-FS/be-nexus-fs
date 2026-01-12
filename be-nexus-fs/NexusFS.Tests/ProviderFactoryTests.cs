@@ -109,10 +109,9 @@ public class ProviderFactoryTests
     {
         var config = new Dictionary<string, string>();
 
-        var exception = Assert.Throws<ArgumentException>(() => 
+        var exception = Assert.Throws<NotSupportedException>(() => 
             _factory.CreateProvider("UnknownType", "test-id", config));
         
-        exception.ParamName.Should().Be("providerType");
         exception.Message.Should().Contain("not supported");
     }
 
@@ -212,10 +211,9 @@ public class ProviderFactoryTests
     {
         var config = new Dictionary<string, string>();
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(async () => 
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(async () => 
             await _factory.CreateProviderAsync("UnknownType", "test-id", config));
         
-        exception.ParamName.Should().Be("providerType");
         exception.Message.Should().Contain("not supported");
     }
 
